@@ -1,0 +1,2 @@
+# Backend-AI-Retail-POS-Inventory-Management-System
+AI-Powered Multi-Branch Retail POS &amp; Inventory Management System is a smart web-based platform for managing sales, inventory, customers, employees, suppliers, and multiple retail branches. It uses AI for sales forecasting, inventory optimization, analytics, and real-time business insights.
