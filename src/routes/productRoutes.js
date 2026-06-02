@@ -16,7 +16,7 @@ const router = express.Router();
 router.post("/", upload.single("image"), addProduct);
 router.get("/", getAllProducts);
 router.get("/:id", getProductById);
-router.put("/:id", updateProduct);
+router.put("/:id", upload.single("image"), updateProduct);
 router.patch("/:id/deactivate", deactivateProduct);
 router.delete("/:id", deleteProduct);
 

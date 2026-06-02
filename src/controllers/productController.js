@@ -143,16 +143,28 @@ const updateProduct = async (req, res) => {
             });
         }
 
-        product.name = req.body.name;
-        product.barcode = req.body.barcode;
-        product.brand = req.body.brand;
-        product.description = req.body.description;
-        product.price = req.body.price;
-        product.costPrice = req.body.costPrice;
-        product.image = req.body.image;
-        product.reorderLevel = req.body.reorderLevel;
-        product.unit = req.body.unit;
-        product.isActive = req.body.isActive;
+        let imageUrl = product.image;
+
+        if (req.file) {
+            const base64Image = req.file.buffer.toString("base64");
+            const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
+
+            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                folder: "retail_pos_products"
+            });
+
+            imageUrl = uploadedImage.secure_url;
+        }
+
+        product.name = req.body.name || product.name;
+        product.barcode = req.body.barcode || product.barcode;
+        product.brand = req.body.brand || product.brand;
+        product.description = req.body.description || product.description;
+        product.price = req.body.price || product.price;
+        product.costPrice = req.body.costPrice || product.costPrice;
+        product.reorderLevel = req.body.reorderLevel || product.reorderLevel;
+        product.unit = req.body.unit || product.unit;
+        product.image = imageUrl;
 
         const updatedProduct = await product.save();
 
