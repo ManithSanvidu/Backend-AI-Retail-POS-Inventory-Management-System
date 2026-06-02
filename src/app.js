@@ -8,6 +8,7 @@ const productRoutes = require("./routes/productRoutes");
 const branchRoutes = require("./routes/branchRoutes");
 const authRoutes = require("./routes/authRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const customerRoutes = require("./routes/customerRoutes");
 
 const app = express();
 
@@ -29,5 +30,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/customers", customerRoutes);
 
 module.exports = app;
