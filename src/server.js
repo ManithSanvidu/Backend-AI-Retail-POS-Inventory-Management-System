@@ -1,16 +1,22 @@
+const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const dotenv = require("dotenv");
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
 
-dotenv.config();
-
-const app = require("./app");
-const connectDB = require("./config/db");
+// Import Routes & Sockets
+const branchRoutes = require("./routes/branchRoutes.js");
 const setupNotificationSockets = require('./sockets/notificationSockets');
 
-const PORT = process.env.PORT || 5000;
+// Initialize Express App
+const app = express();
 
-// Create HTTP server instead of listening directly on Express app
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Create HTTP server (Socket.IO සඳහා Express app එක වෙනුවට HTTP server එකක් සෑදීම අනිවාර්ය වේ)
 const server = http.createServer(app);
 
 // Setup Socket.IO
@@ -22,15 +28,37 @@ const io = new Server(server, {
   }
 });
 
-// Make io globally accessible (used by NotificationService)
+// Make io globally accessible (NotificationService වැනි දේවල් වලට භාවිතා කිරීමට)
 global.io = io;
 
 // Setup Socket handlers
-setupNotificationSockets(io);
+if (setupNotificationSockets) {
+  setupNotificationSockets(io);
+}
 
-// Connect to MongoDB and Start Server
-connectDB().then(() => {
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+// Routes
+app.use("/api/branches", branchRoutes);
+
+// Test Route
+app.get("/", (req, res) => {
+  res.json({
+    message: "AI Retail POS Backend Running",
   });
 });
+
+// Database Connection & Server Start
+const PORT = process.env.PORT || 5000;
+
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("✅ MongoDB Connected successfully");
+    
+    // වැදගත්: app.listen වෙනුවට server.listen භාවිතා කළ යුතුයි
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err);
+  });
