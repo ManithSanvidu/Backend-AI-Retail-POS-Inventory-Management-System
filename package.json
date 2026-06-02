@@ -1,7 +1,7 @@
 {
-  "name": "backend-ai-retail-pos-inventory-management-system-main",
+  "name": "backend-ai-retail-pos-inventory-management-system",
   "version": "1.0.0",
-  "description": "AI-Powered Multi-Branch Retail POS &amp; Inventory Management System is a smart web-based platform for managing sales, inventory, customers, employees, suppliers, and multiple retail branches. It uses AI for sales forecasting, inventory optimization, analytics, and real-time business insights.",
+  "description": "AI-Powered Multi-Branch Retail POS & Inventory Management System is a smart web-based platform for managing sales, inventory, customers, employees, suppliers, and multiple retail branches. It uses AI for sales forecasting, inventory optimization, analytics, and real-time business insights.",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -12,16 +12,18 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.6.3",
+    "mongoose": "^6.8.0",
     "multer": "^2.1.1",
-    "socket.io": "^4.8.3"
+    "nodemailer": "^8.0.10",
+    "socket.io": "^4.8.3",
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

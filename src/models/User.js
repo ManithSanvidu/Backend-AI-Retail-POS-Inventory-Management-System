@@ -41,10 +41,17 @@ const userSchema = new mongoose.Schema(
         default: true
     },
 
-    lastLogin: Date
+    lastLogin: Date,
+
+    resetPasswordToken: String,
+    resetPasswordExpire: Date
 },
 { timestamps: true }
 );
+
+userSchema.methods.matchPassword = async function(enteredPassword) {
+    return bcrypt.compare(enteredPassword, this.password);
+};
 
 userSchema.pre("save", async function(next) {
     if(!this.isModified("password")) return next();
