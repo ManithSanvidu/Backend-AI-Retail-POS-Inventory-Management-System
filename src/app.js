@@ -1,43 +1,33 @@
-const express = require("express");
-const cors = require("cors");
-const morgan = require("morgan");
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
 
-const customerRoutes = require("./routes/customerRoutes");
+dotenv.config();
+
+const productRoutes = require("./routes/productRoutes");
+const branchRoutes = require("./routes/branchRoutes");
+const authRoutes = require("./routes/authRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
-// ========================
-// MIDDLEWARE
-// ========================
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: process.env.CLIENT_URL || '*',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Logger
-if (process.env.NODE_ENV === "development") {
-    app.use(morgan("dev"));
-}
-
-// ========================
-// ROUTES
-// ========================
-app.get("/", (req, res) => {
-    res.json({
-        message: "Retail POS API Running..."
-    });
+// Default Route
+app.get('/', (req, res) => {
+  res.send('AI Retail POS Backend is running...');
 });
 
-// Customer Module Routes 
-app.use("/api/customers", customerRoutes);
-
-// ========================
-// ERROR HANDLING (basic)
-// ========================
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: "Route not found"
-    });
-});
+// Module Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/branches", branchRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 module.exports = app;
