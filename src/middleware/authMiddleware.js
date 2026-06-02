@@ -1,79 +1,45 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-/**
- * Protect routes by checking for JWT in headers
- */
+// check Login 
 const protect = async (req, res, next) => {
-    let token;
+  let token;
 
-    if (
-        req.headers.authorization &&
-        req.headers.authorization.startsWith("Bearer")
-    ) {
-        try {
-            // Get token from header
-            token = req.headers.authorization.split(" ")[1];
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    token = req.headers.authorization.split(" ")[1];
+  }
 
-            // Verify token
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_jwt_secret_key");
+  if (!token) {
+    return res.status(401).json({ message: "Not authorized, no token" });
+  }
 
-            // Get user from the token (exclude password)
-            req.user = await User.findById(decoded.id).select("-password");
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id).select("-password");
 
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    error: "Not authorized, user not found"
-                });
-            }
-
-            if (!req.user.isActive) {
-                return res.status(401).json({
-                    success: false,
-                    error: "Not authorized, user account is inactive"
-                });
-            }
-
-            next();
-        } catch (error) {
-            console.error(error);
-            res.status(401).json({
-                success: false,
-                error: "Not authorized, token failed"
-            });
-        }
+    if (!req.user || !req.user.isActive) {
+      return res.status(401).json({ message: "Account disabled" });
     }
 
-    if (!token) {
-        res.status(401).json({
-            success: false,
-            error: "Not authorized, no token"
-        });
-    }
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Token invalid or expired" });
+  }
 };
 
-/**
- * Grant access to specific roles
- * @param {...string} roles - List of allowed roles
- */
+// Role check  authorize("admin", "manager")
 const authorize = (...roles) => {
-    return (req, res, next) => {
-        if (!req.user) {
-            return res.status(401).json({
-                success: false,
-                error: "Not authorized, user context missing"
-            });
-        }
-
-        if (!roles.includes(req.user.role)) {
-            return res.status(403).json({
-                success: false,
-                error: `User role ${req.user.role} is not authorized to access this route`
-            });
-        }
-        next();
-    };
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `Role '${req.user.role}' is not allowed to access this`,
+      });
+    }
+    next();
+  };
 };
 
 module.exports = { protect, authorize };

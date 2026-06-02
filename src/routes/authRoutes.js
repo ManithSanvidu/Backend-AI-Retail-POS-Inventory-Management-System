@@ -1,11 +1,33 @@
 const express = require("express");
 const router = express.Router();
-const { registerUser, loginUser } = require("../controllers/authcontroller");
+const {
+  register,
+  login,
+  forgotPassword,
+  resetPassword,
+  getProfile,
+  updateProfile,
+} = require("../controllers/authController");
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-// Route: POST /api/auth/register - Register a user profile
-router.post("/register", registerUser);
+// Public routes
+router.post("/register", register);
+router.post("/login", login);
+router.post("/forgot-password", forgotPassword);
+router.put("/reset-password/:token", resetPassword);
 
-// Route: POST /api/auth/login - Retrieve session token
-router.post("/login", loginUser);
+// Private routes (after login)
+router.get("/profile", protect, getProfile);
+router.put("/profile", protect, updateProfile);
+
+// Admin only example
+router.get("/admin-data", protect, authorize("admin"), (req, res) => {
+  res.json({ message: "Admin only data" });
+});
+
+// Admin + Manager example
+router.get("/manager-data", protect, authorize("admin", "manager"), (req, res) => {
+  res.json({ message: "Admin & Manager data" });
+});
 
 module.exports = router;
