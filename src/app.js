@@ -8,6 +8,7 @@ const warehouseRoutes = require("./routes/warehouseRoutes");
 const productRoutes = require("./routes/productRoutes");
 const branchRoutes = require("./routes/branchRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const customerRoutes = require("./routes/customerRoutes");
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/warehouses", warehouseRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/customers", customerRoutes);
 
 // 5. 404 Error Handler (නැති Route එකකට කතා කළොත්)
 app.use((req, res) => {
