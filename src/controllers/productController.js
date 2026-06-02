@@ -1,4 +1,5 @@
 const Product = require("../models/Product.js");
+const cloudinary = require("../config/cloudinary");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -12,7 +13,6 @@ const addProduct = async (req, res) => {
             description,
             price,
             costPrice,
-            image,
             reorderLevel,
             unit,
             isActive
@@ -36,6 +36,19 @@ const addProduct = async (req, res) => {
             }
         }
 
+        let imageUrl = "";
+
+        if (req.file) {
+            const base64Image = req.file.buffer.toString("base64");
+            const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
+
+            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                folder: "retail_pos_products"
+            });
+
+            imageUrl = uploadedImage.secure_url;
+        }
+
         const product = await Product.create({
             name,
             barcode,
@@ -45,7 +58,7 @@ const addProduct = async (req, res) => {
             description,
             price,
             costPrice,
-            image,
+            image: imageUrl,
             reorderLevel,
             unit,
             isActive

@@ -9,9 +9,11 @@ const {
     deleteProduct
 } = require("../controllers/productController");
 
+const upload = require("../middleware/uploadMiddleware");
+
 const router = express.Router();
 
-router.post("/", addProduct);
+router.post("/", upload.single("image"), addProduct);
 router.get("/", getAllProducts);
 router.get("/:id", getProductById);
 router.put("/:id", updateProduct);
