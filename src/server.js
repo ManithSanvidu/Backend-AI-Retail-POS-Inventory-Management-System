@@ -1,36 +1,39 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-require("dotenv").config();
+const http = require('http');
+const { Server } = require('socket.io');
+const dotenv = require("dotenv");
 
-const branchRoutes = require("./routes/branchRoutes.js");
+dotenv.config();
 
-const app = express();
+// app.js eken app eka gannawa
+const app = require("./app");
+const connectDB = require("./config/db");
+const setupNotificationSockets = require('./sockets/notificationSockets');
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Routes
-app.use("/api/branches", branchRoutes);
-
-// Test Route
-app.get("/", (req, res) => {
-  res.json({
-    message: "AI Retail POS Backend Running",
-  });
-});
-
-// Database Connection & Server Start
 const PORT = process.env.PORT || 5000;
 
-mongoose
-  .connect(process.env.MONGO_URI)
+// Create HTTP server instead of listening directly on Express app
+const server = http.createServer(app);
+
+// Setup Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || '*', 
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Make io globally accessible (used by NotificationService)
+global.io = io;
+
+// Setup Socket handlers
+setupNotificationSockets(io);
+
+// Connect to MongoDB and Start Server
+connectDB()
   .then(() => {
-    console.log("✅ MongoDB Connected successfully");
-    
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
