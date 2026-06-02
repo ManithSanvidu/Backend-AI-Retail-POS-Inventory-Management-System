@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -36,3 +37,18 @@ mongoose
   .catch((err) => {
     console.error(err);
   });
+=======
+const dotenv = require("dotenv");
+dotenv.config();
+
+const connectDB = require("./config/db");
+const app = require("./app");
+
+const PORT = process.env.PORT || 5000;
+
+connectDB();
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+>>>>>>> 4fe9a7dd5ee50f1628986f227ff4046b380ef6a7
