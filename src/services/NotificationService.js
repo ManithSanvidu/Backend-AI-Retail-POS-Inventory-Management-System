@@ -1,50 +1,74 @@
 const Notification = require('../models/Notification');
 const NotificationPreference = require('../models/NotificationPreference');
+const User = require('../models/User');
 const { sendEmail } = require('../utils/emailSender');
 const systemEvents = require('../events/eventBus');
 
-// Mock User model fetch for email address. In reality, you'd populate or query the user from DB.
-const getMockUserContactInfo = (userId) => {
-  return { email: 'mock_user@example.com', phone: '+1234567890' }; 
-};
-
 const processAlert = async (data) => {
-  const { userId, title, message, type = 'INFO', channels = ['in-app'], link } = data;
+  // Now accepts target instead of just userId
+  const { target, category = 'GENERAL', title, message, type = 'INFO', channels = ['in-app'], link } = data;
 
   try {
-    // 1. Fetch User Preferences (Defaults to all enabled if not found)
-    let prefs = await NotificationPreference.findOne({ userId });
-    if (!prefs) {
-      prefs = { emailEnabled: true, smsEnabled: false, inAppEnabled: true };
+    // 1. Determine who to send this to based on the target
+    let query = {};
+    if (target && target.userId) {
+      query._id = target.userId;
+    } else if (target) {
+      if (target.role) query.role = target.role;
+      if (target.branchId) query.branchId = target.branchId;
     }
 
-    // 2. In-App Notification (Database + WebSocket)
-    if (channels.includes('in-app') && prefs.inAppEnabled) {
-      const newNotif = await Notification.create({
-        recipient: userId,
-        type,
-        title,
-        message,
-        channels,
-        link
-      });
+    // Stop if no valid target was provided
+    if (Object.keys(query).length === 0) {
+      console.warn('Alert dismissed: No valid target provided (missing userId, role, or branchId)');
+      return;
+    }
 
-      // Emit to WebSocket room (user's ID)
-      if (global.io) {
-        global.io.to(userId.toString()).emit('new-notification', newNotif);
+    // 2. Fetch all matching users (REAL CONTACT INFO LOOKUP from User Model)
+    const users = await User.find(query);
+
+    if (users.length === 0) {
+      console.log(`No users found matching target: ${JSON.stringify(target)}`);
+      return;
+    }
+
+    // 3. Process the notification for each matching user
+    for (const user of users) {
+      const userId = user._id;
+
+      // Fetch User Preferences (Defaults to all enabled if not found)
+      let prefs = await NotificationPreference.findOne({ userId });
+      if (!prefs) {
+        prefs = { emailEnabled: true, smsEnabled: false, inAppEnabled: true };
       }
-    }
 
-    // 3. Email Notification
-    if (channels.includes('email') && prefs.emailEnabled) {
-      const userInfo = getMockUserContactInfo(userId);
-      await sendEmail(userInfo.email, title, message);
-    }
+      // In-App Notification (Database + WebSocket)
+      if (channels.includes('in-app') && prefs.inAppEnabled) {
+        const newNotif = await Notification.create({
+          recipient: userId,
+          category,
+          type,
+          title,
+          message,
+          channels,
+          link
+        });
 
-    // 4. SMS Notification (Mocked for now)
-    if (channels.includes('sms') && prefs.smsEnabled) {
-      const userInfo = getMockUserContactInfo(userId);
-      console.log(`[Mock SMS] Sent to ${userInfo.phone}: ${title} - ${message}`);
+        // Emit to WebSocket room (user's ID)
+        if (global.io) {
+          global.io.to(userId.toString()).emit('new-notification', newNotif);
+        }
+      }
+
+      // Email Notification
+      if (channels.includes('email') && prefs.emailEnabled && user.email) {
+        await sendEmail(user.email, title, message);
+      }
+
+      // SMS Notification (Mocked for now)
+      if (channels.includes('sms') && prefs.smsEnabled && user.phone) {
+        console.log(`[Mock SMS Module] Sent to ${user.phone}: ${title} - ${message}`);
+      }
     }
 
   } catch (error) {
