@@ -1,21 +1,36 @@
-require("dotenv").config();
+const http = require('http');
+const { Server } = require('socket.io');
+const dotenv = require("dotenv");
+
+dotenv.config();
 
 const app = require("./app");
 const connectDB = require("./config/db");
-
-// =========================
-// LOAD ALL MODELS FIRST
-// =========================
-require("./models/Branch");
-require("./models/Customer");
-require("./models/Sale");
+const setupNotificationSockets = require('./sockets/notificationSockets');
 
 const PORT = process.env.PORT || 5000;
 
-// Connect Database first
-connectDB();
+// Create HTTP server instead of listening directly on Express app
+const server = http.createServer(app);
 
-// Start Server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Setup Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || '*', 
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Make io globally accessible (used by NotificationService)
+global.io = io;
+
+// Setup Socket handlers
+setupNotificationSockets(io);
+
+// Connect to MongoDB and Start Server
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
 });
