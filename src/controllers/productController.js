@@ -242,11 +242,181 @@ const deleteProduct = async (req, res) => {
     }
 };
 
+// Get Product By Barcode
+const getProductByBarcode = async (req, res) => {
+    try {
+        const product = await Product.findOne({
+            barcode: req.params.barcode,
+            isActive: true
+        });
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found for this barcode"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            product
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error finding product by barcode",
+            error: error.message
+        });
+    }
+};
+
+// Search and Filter Products
+const searchProducts = async (req, res) => {
+    try {
+        const { keyword, brand, category, minPrice, maxPrice } = req.query;
+
+        let query = {
+            isActive: true
+        };
+
+        if (keyword) {
+            query.$or = [
+                { name: { $regex: keyword, $options: "i" } },
+                { barcode: { $regex: keyword, $options: "i" } },
+                { brand: { $regex: keyword, $options: "i" } }
+            ];
+        }
+
+        if (brand) {
+            query.brand = { $regex: brand, $options: "i" };
+        }
+
+        if (category) {
+            query.category = category;
+        }
+
+        if (minPrice || maxPrice) {
+            query.price = {};
+
+            if (minPrice) {
+                query.price.$gte = Number(minPrice);
+            }
+
+            if (maxPrice) {
+                query.price.$lte = Number(maxPrice);
+            }
+        }
+
+        const products = await Product.find(query)
+            .populate("category")
+            .populate("supplier")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            products
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error searching products",
+            error: error.message
+        });
+    }
+};
+
+// Get Active Products
+const getActiveProducts = async (req, res) => {
+    try {
+        const products = await Product.find({ isActive: true })
+            .populate("category")
+            .populate("supplier")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            products
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching active products",
+            error: error.message
+        });
+    }
+};
+
+
+// Get Inactive Products
+const getInactiveProducts = async (req, res) => {
+    try {
+        const products = await Product.find({ isActive: false })
+            .populate("category")
+            .populate("supplier")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            products
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching inactive products",
+            error: error.message
+        });
+    }
+};
+
+
+// Reactivate Product
+const reactivateProduct = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found"
+            });
+        }
+
+        product.isActive = true;
+
+        const updatedProduct = await product.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Product reactivated successfully",
+            product: updatedProduct
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error reactivating product",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     addProduct,
     getAllProducts,
     getProductById,
     updateProduct,
     deactivateProduct,
-    deleteProduct
+    deleteProduct,
+    getProductByBarcode,
+    searchProducts,
+    getActiveProducts,
+    getInactiveProducts,
+    reactivateProduct
 };  
