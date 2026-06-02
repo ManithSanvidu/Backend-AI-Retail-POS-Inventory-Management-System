@@ -1,22 +1,15 @@
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-const cors = require('cors');
-require('dotenv').config();
-
-dotenv.config();
+require('dotenv').config(); // This is all you need for dotenv
 
 // app.js eken app eka gannawa
 const app = require("./app");
 const connectDB = require("./config/db");
 const setupNotificationSockets = require('./sockets/notificationSockets');
 
-// Initialize Express App
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Note: I removed `const app = express()` and the cors/json middleware 
+// here because those should ideally be handled inside your `app.js` file.
 
 // Create HTTP server (Socket.IO සඳහා Express app එක වෙනුවට HTTP server එකක් සෑදීම අනිවාර්ය වේ)
 const server = http.createServer(app);
@@ -30,11 +23,14 @@ const io = new Server(server, {
   }
 });
 
-// Make io globally accessible (NotificationService වැනි දේවල් වලට භාවිතා කිරීමට)
+// Make io globally accessible
 global.io = io;
 
 // Setup Socket handlers
 setupNotificationSockets(io);
+
+// Define PORT (Add this so the server knows where to listen!)
+const PORT = process.env.PORT || 5000;
 
 // Connect to MongoDB and Start Server
 connectDB()
