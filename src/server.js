@@ -1,54 +1,36 @@
-<<<<<<< HEAD
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-require("dotenv").config();
-
-const branchRoutes = require("./routes/branchRoutes.js");
-
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Routes
-app.use("/api/branches", branchRoutes);
-
-// Test Route
-app.get("/", (req, res) => {
-  res.json({
-    message: "AI Retail POS Backend Running",
-  });
-});
-
-// Database Connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB Connected");
-
-    const PORT = process.env.PORT || 5000;
-
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error(err);
-  });
-=======
+const http = require('http');
+const { Server } = require('socket.io');
 const dotenv = require("dotenv");
+
 dotenv.config();
 
-const connectDB = require("./config/db");
 const app = require("./app");
+const connectDB = require("./config/db");
+const setupNotificationSockets = require('./sockets/notificationSockets');
 
 const PORT = process.env.PORT || 5000;
 
-connectDB();
+// Create HTTP server instead of listening directly on Express app
+const server = http.createServer(app);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Setup Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || '*', 
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
 });
->>>>>>> 4fe9a7dd5ee50f1628986f227ff4046b380ef6a7
+
+// Make io globally accessible (used by NotificationService)
+global.io = io;
+
+// Setup Socket handlers
+setupNotificationSockets(io);
+
+// Connect to MongoDB and Start Server
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+});
