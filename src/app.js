@@ -2,31 +2,14 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const branchRoutes = require("./routes/branchRoutes.js");
-// Awashya nam oyage anith routes (authRoutes, warehouseRoutes) methanata add karanna
-
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Routes
-app.use("/api/branches", branchRoutes);
-
-// Test Route
-app.get("/", (req, res) => {
-  res.json({
-    message: "AI Retail POS Backend Running",
-  });
-});
-
-// App eka export karanawa server.js ekata ganna
-module.exports = app;
-const express = require("express");
-const cors = require("cors");
+// Route files
 const authRoutes = require("./routes/authRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
+const branchRoutes = require("./routes/branchRoutes");
+const customerRoutes = require("./routes/customerRoutes");
+const warehouseRoutes = require("./routes/warehouseRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const employeeRoutes = require("./routes/employeeRoutes");
 
 const app = express();
 
@@ -51,11 +34,14 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Authentication endpoints
+// Mounting routes
 app.use("/api/auth", authRoutes);
-
-// Inventory Management Module endpoints (Part 9)
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/branches", branchRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/warehouses", warehouseRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/employees", employeeRoutes);
 
 // --- 404 NOT FOUND HANDLER ---
 app.use((req, res, next) => {
