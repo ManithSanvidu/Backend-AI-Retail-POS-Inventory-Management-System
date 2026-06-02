@@ -2,6 +2,7 @@ const Notification = require('../models/Notification');
 const NotificationPreference = require('../models/NotificationPreference');
 const User = require('../models/User');
 const { sendEmail } = require('../utils/emailSender');
+const { sendSMS } = require('../utils/smsSender');
 const systemEvents = require('../events/eventBus');
 
 const processAlert = async (data) => {
@@ -65,9 +66,9 @@ const processAlert = async (data) => {
         await sendEmail(user.email, title, message);
       }
 
-      // SMS Notification (Mocked for now)
+      // SMS Notification using real user phone and Twilio
       if (channels.includes('sms') && prefs.smsEnabled && user.phone) {
-        console.log(`[Mock SMS Module] Sent to ${user.phone}: ${title} - ${message}`);
+        await sendSMS(user.phone, `${title} - ${message}`);
       }
     }
 

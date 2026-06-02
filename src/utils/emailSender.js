@@ -13,17 +13,23 @@ const transporter = nodemailer.createTransport({
 
 const sendEmail = async (to, subject, text, html = '') => {
   try {
+    // If SMTP credentials are not set up, gracefully mock the email to prevent server crashes
+    if (!process.env.SMTP_USER || process.env.SMTP_USER === 'your_email@gmail.com') {
+      console.log(`[Mock Email Module] Would have sent to ${to}: ${subject}`);
+      return true;
+    }
+
     const info = await transporter.sendMail({
-      from: `"Retail POS System" <${process.env.SMTP_USER || 'noreply@retailpos.com'}>`,
+      from: `"Retail POS System" <${process.env.SMTP_USER}>`,
       to,
       subject,
       text,
       html: html || text
     });
-    console.log(`Email sent: ${info.messageId}`);
+    console.log(`[Email Module] Email sent: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error(`Error sending email to ${to}:`, error.message);
+    console.error(`[Email Error] Failed to send email to ${to}:`, error.message);
     return false;
   }
 };
