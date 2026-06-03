@@ -1,15 +1,18 @@
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
 
-// Import routes from tharuka branch
+dotenv.config();
+
+// Import routes from Dev branch
 const authRoutes = require('./routes/authRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
 const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
-
-// Import routes from Dev branch
 const recommendationsRoutes = require('./routes/recommendations');
-const chatRoutes = require('./routes/chat');
+
+// Import routes from Kaveesha branch
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
@@ -37,9 +40,9 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/users', userRoutes);
 
-// 404 Route not found handler
+// 404 handler
 app.use((req, res) => {
     res.status(404).json({
         success: false,
@@ -47,7 +50,7 @@ app.use((req, res) => {
     });
 });
 
-// Global Error handling middleware
+// Global Error handler
 app.use((err, req, res, next) => {
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
     res.status(statusCode).json({
