@@ -4,6 +4,8 @@ const cors = require('cors');
 // Import routes
 const recommendationsRoutes = require('./routes/recommendations');
 const chatRoutes = require('./routes/chat');
+const nlqueryRoutes = require('./routes/nlquery');
+const decisionsRoutes = require('./routes/decisions');
 
 const app = express();
 
@@ -20,6 +22,8 @@ app.get('/', (req, res) => {
 // Mount Routes
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/nlquery', nlqueryRoutes);
+app.use('/api/decisions', decisionsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
