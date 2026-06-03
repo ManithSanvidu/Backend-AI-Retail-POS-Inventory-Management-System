@@ -45,8 +45,7 @@ const getBranchById = async (req, res) => {
   try {
     const branch = await Branch.findById(req.params.id)
       .populate("manager")
-      .populate("employees");
-
+      
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
