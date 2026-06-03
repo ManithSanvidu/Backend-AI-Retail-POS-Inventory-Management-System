@@ -1,10 +1,21 @@
 const customerService = require("../services/customerService");
+const systemEvents = require("../events/eventBus");
 
 // CREATE
 exports.createCustomer = async (req, res) => {
     try {
 
         const customer = await customerService.createCustomer(req.body);
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Manager' }, 
+            category: 'CUSTOMER',
+            type: 'INFO',
+            title: 'New Customer Registered',
+            message: `Customer ${customer.firstName || req.body.firstName} just registered.`,
+            channels: ['in-app']
+        });
 
         return res.status(201).json({
             success: true,
@@ -167,6 +178,16 @@ exports.addLoyaltyPoints = async (req, res) => {
                 customerId,
                 amount
             );
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Manager' }, 
+            category: 'CUSTOMER',
+            type: 'SUCCESS',
+            title: 'Loyalty Points Awarded',
+            message: `Customer ${customer.firstName || customerId} received ${amount} loyalty points.`,
+            channels: ['in-app']
+        });
 
         return res.status(200).json({
             success: true,
