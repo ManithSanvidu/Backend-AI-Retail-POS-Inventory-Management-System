@@ -19,18 +19,38 @@ const employeeSchema = new mongoose.Schema(
     salary: Number,
 
     branch: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Branch"
+        type: String, // String to support both ID keys like "1", "2" and ObjectIds
+        default: "1"
     },
 
     joiningDate: Date,
+
+    photo: {
+        type: String,
+        default: ""
+    },
+
+    status: {
+        type: String,
+        default: "Active"
+    },
+
+    performanceScore: {
+        type: Number,
+        default: 4.0
+    },
+
+    workingStatus: {
+        type: String,
+        default: "Off Duty"
+    },
 
     attendance: [
         {
             date: Date,
             status: {
                 type: String,
-                enum: ["PRESENT", "ABSENT", "LEAVE"]
+                enum: ["PRESENT", "ABSENT", "LEAVE", "Present", "Late"]
             }
         }
     ]
