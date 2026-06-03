@@ -10,7 +10,7 @@ const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const recommendationsRoutes = require('./routes/recommendations');
 const userRoutes = require('./routes/userRoutes');
-
+const branchRoutes = require('./routes/branchRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
@@ -40,8 +40,7 @@ app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/employees',      require('./routes/employeeRoutes'));
-
+app.use('/api/branches', branchRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/employees', employeeRoutes);
