@@ -15,6 +15,7 @@ const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const customerRoutes = require("./routes/customerRoutes");
+const returnsRoutes = require("./routes/returnsRoutes");
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/returns", returnsRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
