@@ -127,6 +127,8 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
+const supplierRoutes = require('./routes/supplierRoutes');
+const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 
 const app = express();
 
@@ -144,12 +146,18 @@ app.get('/', (req, res) => {
 	res.json({ message: 'AI-Powered Retail POS backend is running' });
 });
 
+app.get('/health', (req, res) => {
+	res.json({ status: 'ok', message: 'Server running' });
+});
+
 app.get('/api/health', (req, res) => {
 	res.json({ status: 'ok', message: 'Server running' });
 });
 
 app.use('/api/auth', authRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/suppliers', supplierRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 
 app.use((req, res) => {
 	res.status(404).json({
