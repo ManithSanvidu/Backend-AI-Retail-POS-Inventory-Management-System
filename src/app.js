@@ -16,6 +16,8 @@ const branchRoutes = require('./routes/branchRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const warehouseRoutes = require('./routes/warehouseRoutes');
 const customerRoutes = require("./routes/customerRoutes");
 
 const app = express();
@@ -47,6 +49,8 @@ app.use('/api/branches', branchRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/warehouses', warehouseRoutes);
 app.use("/api/customers", customerRoutes);
 
 app.use((req, res) => {
