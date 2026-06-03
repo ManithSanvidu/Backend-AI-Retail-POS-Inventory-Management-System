@@ -1,33 +1,12 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const {
-  register,
-  login,
-  forgotPassword,
-  resetPassword,
-  getProfile,
-  updateProfile,
-} = require("../controllers/authController");
-const { protect, authorize } = require("../middleware/authMiddleware");
 
-// Public routes
-router.post("/register", register);
-router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
-router.put("/reset-password/:token", resetPassword);
-
-// Private routes (after login)
-router.get("/profile", protect, getProfile);
-router.put("/profile", protect, updateProfile);
-
-// Admin only example
-router.get("/admin-data", protect, authorize("admin"), (req, res) => {
-  res.json({ message: "Admin only data" });
+router.post('/login', (req, res) => {
+  res.status(501).json({ error: 'Login not implemented' });
 });
 
-// Admin + Manager example
-router.get("/manager-data", protect, authorize("admin", "manager"), (req, res) => {
-  res.json({ message: "Admin & Manager data" });
+router.post('/register', (req, res) => {
+  res.status(501).json({ error: 'Register not implemented' });
 });
 
 module.exports = router;

@@ -1,8 +1,7 @@
 const Notification = require('../models/Notification');
 const NotificationPreference = require('../models/NotificationPreference');
 const User = require('../models/User');
-const { sendEmail } = require('../utils/emailSender');
-const { sendSMS } = require('../utils/smsSender');
+const notificationQueue = require('../queues/notificationQueue');
 const systemEvents = require('../events/eventBus');
 
 const processAlert = async (data) => {
@@ -61,14 +60,22 @@ const processAlert = async (data) => {
         }
       }
 
-      // Email Notification
+      // Email Notification (via Background Queue)
       if (channels.includes('email') && prefs.emailEnabled && user.email) {
-        await sendEmail(user.email, title, message);
+        await notificationQueue.add('sendEmailJob', {
+            type: 'EMAIL',
+            recipient: user.email,
+            content: { subject: title, text: message }
+        });
       }
 
-      // SMS Notification using real user phone and Twilio
+      // SMS Notification (via Background Queue)
       if (channels.includes('sms') && prefs.smsEnabled && user.phone) {
-        await sendSMS(user.phone, `${title} - ${message}`);
+        await notificationQueue.add('sendSmsJob', {
+            type: 'SMS',
+            recipient: user.phone,
+            content: { text: `${title} - ${message}` }
+        });
       }
     }
 
