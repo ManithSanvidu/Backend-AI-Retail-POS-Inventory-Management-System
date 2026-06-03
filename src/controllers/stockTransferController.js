@@ -174,6 +174,48 @@ const adjustInventoryWithLog = async ({
 
 const getRequestBody = (req) => req.body || {};
 
+const isAdminRole = (role) => ["SUPER_ADMIN", "ADMIN"].includes(role);
+
+const assertManagerOutboundRequest = (req, fromBranch) => {
+	if (isAdminRole(req.user.role)) {
+		return null;
+	}
+
+	if (req.user.role !== "MANAGER") {
+		return "Access denied for this role.";
+	}
+
+	if (!req.user.branch) {
+		return "Manager must be assigned to a branch to create transfer requests.";
+	}
+
+	if (String(fromBranch) !== String(req.user.branch)) {
+		return "Managers can only create transfer requests from their own branch.";
+	}
+
+	return null;
+};
+
+const assertInboundReceiptAccess = (req, transfer) => {
+	if (isAdminRole(req.user.role)) {
+		return null;
+	}
+
+	if (req.user.role !== "MANAGER") {
+		return "Access denied for this role.";
+	}
+
+	if (!req.user.branch) {
+		return "Manager must be assigned to a branch to confirm receipt.";
+	}
+
+	if (String(transfer.toBranch) !== String(req.user.branch)) {
+		return "Managers can only confirm receipt for inbound transfers to their branch.";
+	}
+
+	return null;
+};
+
 const createTransfer = async (req, res) => {
     try {
         const body = getRequestBody(req);
@@ -196,6 +238,11 @@ const createTransfer = async (req, res) => {
 
         if (fromBranch === toBranch) {
             return res.status(400).json({ success: false, message: "fromBranch and toBranch must be different." });
+        }
+
+        const branchAccessError = assertManagerOutboundRequest(req, fromBranch);
+        if (branchAccessError) {
+            return res.status(403).json({ success: false, message: branchAccessError });
         }
 
         const [fromExists, toExists] = await Promise.all([
@@ -394,6 +441,12 @@ const completeTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: "Only IN_TRANSIT transfers can be completed." });
         }
 
+        const receiptAccessError = assertInboundReceiptAccess(req, transfer);
+        if (receiptAccessError) {
+            await session.abortTransaction();
+            return res.status(403).json({ success: false, message: receiptAccessError });
+        }
+
         for (const item of transfer.items) {
             await adjustInventoryWithLog({
                 transferId: transfer._id,
@@ -482,6 +535,40 @@ const cancelTransfer = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     } finally {
         session.endSession();
+    }
+};
+
+/** Admin progress tracking: reject a pending transfer request */
+const rejectTransfer = async (req, res) => {
+    try {
+        const transfer = await StockTransfer.findById(req.params.id);
+        const { reason } = getRequestBody(req);
+
+        if (!transfer) {
+            return res.status(404).json({ success: false, message: "Transfer not found." });
+        }
+
+        if (transfer.status !== "PENDING") {
+            return res.status(400).json({
+                success: false,
+                message: "Only PENDING transfers can be rejected."
+            });
+        }
+
+        transfer.status = "CANCELLED";
+        transfer.cancelledAt = new Date();
+        transfer.cancelReason = reason || "Transfer rejected";
+        pushActivityLog(transfer, "CANCELLED", transfer.cancelReason, req.user._id);
+        await transfer.save();
+
+        await createAuditLog(req, "REJECT_TRANSFER", {
+            transferId: transfer._id,
+            reason: transfer.cancelReason
+        });
+
+        return res.status(200).json({ success: true, data: transfer });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -650,8 +737,10 @@ module.exports = {
     updateTransfer,
     deleteTransfer,
     dispatchTransfer,
+    approveTransfer: dispatchTransfer,
     completeTransfer,
     cancelTransfer,
+    rejectTransfer,
     listTransfers,
     getTransferById,
     listInventoryMovements,

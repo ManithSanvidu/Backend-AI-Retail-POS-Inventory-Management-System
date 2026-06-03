@@ -3,6 +3,7 @@ const Inventory = require("../models/Inventory");
 const StockMovement = require("../models/StockMovement");
 const Product = require("../models/Product");
 const inventoryService = require("../services/inventoryService");
+const systemEvents = require("../events/eventBus");
 
 /**
  * @api {get} /api/inventory Fetch inventory with filtering
@@ -141,6 +142,15 @@ const updateStock = async (req, res, next) => {
                     branchId: result.branchId,
                     quantity: result.newQuantity,
                     message: `Product stock level has fallen below the reorder point.`
+                });
+
+                systemEvents.emit('SEND_ALERT', {
+                    target: { branchId: result.branchId, role: 'Manager' },
+                    category: 'INVENTORY',
+                    type: 'WARNING',
+                    title: 'Low Stock Alert',
+                    message: `Stock level has fallen below the reorder point. Current quantity: ${result.newQuantity}.`,
+                    channels: ['in-app', 'email', 'sms'],
                 });
             }
         }

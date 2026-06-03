@@ -6,8 +6,10 @@ const {
     updateTransfer,
     deleteTransfer,
     dispatchTransfer,
+    approveTransfer,
     completeTransfer,
     cancelTransfer,
+    rejectTransfer,
     listTransfers,
     getTransferById,
     listInventoryMovements,
@@ -15,20 +17,33 @@ const {
 } = require("../controllers/stockTransferController");
 
 const router = express.Router();
-const manageRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
+
+const adminRoles = ["SUPER_ADMIN", "ADMIN"];
+const managerRoles = ["SUPER_ADMIN", "MANAGER"];
+const readRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER", "EMPLOYEE"];
 
 router.use(protect);
 
-router.get("/analytics/summary", getTransferAnalytics);
-router.get("/movements/history", listInventoryMovements);
-router.get("/", listTransfers);
-router.get("/:id", getTransferById);
+// Read-only: tracking, stock history (cashier + all roles)
+router.get("/analytics/summary", authorizeRoles(...readRoles), getTransferAnalytics);
+router.get("/movements/history", authorizeRoles(...readRoles), listInventoryMovements);
+router.get("/", authorizeRoles(...readRoles), listTransfers);
+router.get("/:id", authorizeRoles(...readRoles), getTransferById);
 
-router.post("/", authorizeRoles(...manageRoles), createTransfer);
-router.put("/:id", authorizeRoles(...manageRoles), updateTransfer);
-router.delete("/:id", authorizeRoles(...manageRoles), deleteTransfer);
-router.patch("/:id/dispatch", authorizeRoles(...manageRoles), dispatchTransfer);
-router.patch("/:id/complete", authorizeRoles(...manageRoles), completeTransfer);
-router.patch("/:id/cancel", authorizeRoles(...manageRoles), cancelTransfer);
+// Manager: Transfer Request tab
+router.post("/", authorizeRoles(...managerRoles), createTransfer);
+
+// Admin: Progress Tracking — Approve / Reject / Cancel
+router.patch("/:id/approve", authorizeRoles(...adminRoles), approveTransfer);
+router.patch("/:id/dispatch", authorizeRoles(...adminRoles), dispatchTransfer);
+router.patch("/:id/reject", authorizeRoles(...adminRoles), rejectTransfer);
+router.patch("/:id/cancel", authorizeRoles(...adminRoles), cancelTransfer);
+
+// Manager: Confirm Receipt on inbound transfers (destination branch only)
+router.patch("/:id/complete", authorizeRoles(...managerRoles), completeTransfer);
+
+// Admin maintenance on pending requests
+router.put("/:id", authorizeRoles(...adminRoles), updateTransfer);
+router.delete("/:id", authorizeRoles(...adminRoles), deleteTransfer);
 
 module.exports = router;
