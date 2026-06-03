@@ -4,6 +4,7 @@ const Branch = require("../models/Branch.js");
 const Inventory = require("../models/Inventory.js");
 const Sale = require("../models/Sale.js");
 const Employee = require("../models/Employee.js");
+const systemEvents = require("../events/eventBus.js");
 
 // ===============================
 // CREATE BRANCH
@@ -72,6 +73,16 @@ const updateBranch = async (req, res) => {
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'INFO',
+      title: 'Branch Details Updated',
+      message: `The details for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
 
     res.status(200).json({
       message: "Branch updated successfully",
@@ -227,6 +238,16 @@ const updateBranchSettings = async (req, res) => {
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'WARNING',
+      title: 'Branch Settings Changed',
+      message: `The configuration settings for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
 
     res.status(200).json({
       message: "Branch settings updated",
