@@ -2,21 +2,29 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const systemEvents = require('../events/eventBus');
 
 // 1. Load JSON File
 const dataPath = path.join(__dirname, '../data/recommendations.json');
 let recommendationsData = {};
 
-try {
-    const rawData = fs.readFileSync(dataPath, 'utf8');
-    recommendationsData = JSON.parse(rawData);
-    console.log("✅ Recommendation engine loaded successfully");
-    console.log(`   Sales recs: ${recommendationsData.salesRecommendations?.length || 0}`);
-    console.log(`   Inventory recs: ${recommendationsData.inventoryRecommendations?.length || 0}`);
-    console.log(`   Cross-sell pairs: ${recommendationsData.crossSellRecommendations?.length || 0}`);
-} catch (error) {
-    console.error("❌ Failed to load recommendations.json:", error.message);
-}
+const loadRecommendations = () => {
+    try {
+        const rawData = fs.readFileSync(dataPath, 'utf8');
+        recommendationsData = JSON.parse(rawData);
+        console.log("✅ Recommendation engine loaded successfully");
+        console.log(`   Sales recs: ${recommendationsData.salesRecommendations?.length || 0}`);
+        console.log(`   Inventory recs: ${recommendationsData.inventoryRecommendations?.length || 0}`);
+        console.log(`   Cross-sell pairs: ${recommendationsData.crossSellRecommendations?.length || 0}`);
+        return true;
+    } catch (error) {
+        console.error("❌ Failed to load recommendations.json:", error.message);
+        return false;
+    }
+};
+
+// Initial load
+loadRecommendations();
 
 // Helper to format success response
 const formatResponse = (data) => ({
@@ -101,6 +109,38 @@ router.get('/analytics/insights', (req, res) => {
     try {
         const data = recommendationsData.conversationalAnalytics || {};
         res.json(formatResponse(data));
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 8. POST /api/recommendations/refresh
+router.post('/refresh', (req, res) => {
+    try {
+        const success = loadRecommendations();
+        if (success) {
+            // Trigger a notification that the model has been refreshed
+            systemEvents.emit('SEND_ALERT', {
+                target: { role: 'Manager' }, 
+                category: 'SYSTEM',
+                type: 'INFO',
+                title: 'AI Recommendations Updated',
+                message: 'The AI Recommendation Engine has been retrained with new sales and inventory data.',
+                channels: ['in-app']
+            });
+
+            res.json({
+                success: true,
+                message: "Recommendation engine retrained and reloaded successfully",
+                stats: {
+                    salesRecs: recommendationsData.salesRecommendations?.length || 0,
+                    inventoryRecs: recommendationsData.inventoryRecommendations?.length || 0,
+                    crossSellPairs: recommendationsData.crossSellRecommendations?.length || 0
+                }
+            });
+        } else {
+            res.status(500).json({ success: false, error: "Failed to reload recommendations data" });
+        }
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
