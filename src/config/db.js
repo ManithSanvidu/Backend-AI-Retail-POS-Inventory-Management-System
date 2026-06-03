@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-mongoose.set("bufferCommands", false);
+mongoose.set("strictQuery", false);
 
 const connectDB = async () => {
   const mongoUri = process.env.MONGO_URI;
