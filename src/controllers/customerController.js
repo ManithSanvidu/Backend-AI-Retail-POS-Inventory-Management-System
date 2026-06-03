@@ -1,20 +1,53 @@
 const customerService = require("../services/customerService");
+const systemEvents = require("../events/eventBus");
 
 // CREATE
 exports.createCustomer = async (req, res) => {
     try {
-        const data = await customerService.createCustomer(req.body);
+
+        const customer = await customerService.createCustomer(req.body);
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Manager' }, 
+            category: 'CUSTOMER',
+            type: 'INFO',
+            title: 'New Customer Registered',
+            message: `Customer ${customer.firstName || req.body.firstName} just registered.`,
+            channels: ['in-app']
+        });
 
         return res.status(201).json({
             success: true,
-            message: "Customer created",
-            data
+            message: "Customer created successfully",
+            data: customer
         });
 
-    } catch (err) {
+    } catch (error) {
+
+        if (error.code === 11000) {
+
+            const duplicatedField = Object.keys(error.keyValue || {})[0];
+
+            let message = "Duplicate field value";
+
+            if (duplicatedField === "email") {
+                message = "Customer email already exists";
+            }
+
+            if (duplicatedField === "phone") {
+                message = "Customer phone already exists";
+            }
+
+            return res.status(409).json({
+                success: false,
+                message
+            });
+        }
+
         return res.status(500).json({
             success: false,
-            message: err.message
+            message: "Failed to create customer"
         });
     }
 };
@@ -104,6 +137,73 @@ exports.deleteCustomer = async (req, res) => {
     }
 };
 
+// GET CUSTOMERS BY BRANCH
+exports.getCustomersByBranch = async (req, res) => {
+
+    try {
+
+        const branchId = req.params.branchId;
+        const search = req.query.search || "";
+
+        const customers =
+            await customerService.getCustomersByBranchId(
+                branchId,
+                search
+            );
+
+        return res.status(200).json({
+            success: true,
+            count: customers.length,
+            data: customers
+        });
+
+    } catch (error) {
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// ADD LOYALTY POINTS
+exports.addLoyaltyPoints = async (req, res) => {
+
+    try {
+
+        const { customerId, amount } = req.body;
+
+        const customer =
+            await customerService.addLoyaltyPoints(
+                customerId,
+                amount
+            );
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Manager' }, 
+            category: 'CUSTOMER',
+            type: 'SUCCESS',
+            title: 'Loyalty Points Awarded',
+            message: `Customer ${customer.firstName || customerId} received ${amount} loyalty points.`,
+            channels: ['in-app']
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Loyalty points updated",
+            data: customer
+        });
+
+    } catch (error) {
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 /* // PURCHASE HISTORY
 exports.purchaseHistory = async (req, res) => {
     try {
@@ -120,7 +220,7 @@ exports.purchaseHistory = async (req, res) => {
             message: err.message
         });
     }
-};
+}; */
 
 // ANALYTICS
 exports.analytics = async (req, res) => {
@@ -138,4 +238,4 @@ exports.analytics = async (req, res) => {
             message: err.message
         });
     }
-};  */
+};   

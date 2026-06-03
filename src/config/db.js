@@ -2,15 +2,16 @@ const dns = require('dns');
 const mongoose = require('mongoose');
 
 mongoose.set('bufferCommands', false);
+mongoose.set('strictQuery', true);
 
 const connectDB = async () => {
-	const mongoUri = process.env.MONGO_URI;
-	const dbName = process.env.DB_NAME || 'retail_pos_db';
+    const mongoUri = process.env.MONGO_URI;
+    const dbName = process.env.DB_NAME || 'retail_pos_db';
 
-	if (!mongoUri) {
-		console.warn('MONGO_URI is missing. Server started without MongoDB.');
-		return null;
-	}
+    if (!mongoUri) {
+        console.warn('MONGO_URI is missing. Server started without MongoDB.');
+        return null;
+    }
 
 	try {
 		if (mongoUri.startsWith('mongodb+srv://')) {
