@@ -158,6 +158,8 @@ const updateProduct = async (req, res) => {
 
         product.name = req.body.name || product.name;
         product.barcode = req.body.barcode || product.barcode;
+        product.category = req.body.category || product.category;
+        product.supplier = req.body.supplier || product.supplier;
         product.brand = req.body.brand || product.brand;
         product.description = req.body.description || product.description;
         product.price = req.body.price || product.price;
