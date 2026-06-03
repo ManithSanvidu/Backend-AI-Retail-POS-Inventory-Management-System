@@ -1,58 +1,182 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+// <<<<<<< HEAD
+// const mongoose = require("mongoose");
+// const bcrypt = require("bcryptjs");
+
+// const userSchema = new mongoose.Schema(
+// {
+//     firstName: String,
+//     lastName: String,
+
+//     email: {
+//         type: String,
+//         required: true,
+//         unique: true
+//     },
+
+//     password: {
+//         type: String,
+//         required: true
+//     },
+
+//     phone: String,
+
+//     role: {
+//         type: String,
+//         enum: [
+//             "SUPER_ADMIN",
+//             "ADMIN",
+//             "MANAGER",
+//             "CASHIER",
+//             "EMPLOYEE"
+//         ],
+//         default: "EMPLOYEE"
+//     },
+
+//     branch: {
+//         type: mongoose.Schema.Types.ObjectId,
+//         ref: "Branch"
+//     },
+
+//     isActive: {
+//         type: Boolean,
+//         default: true
+//     },
+
+//     lastLogin: Date
+// },
+// { timestamps: true }
+// );
+
+// userSchema.pre("save", async function(next) {
+//     if(!this.isModified("password")) return next();
+
+//     const salt = await bcrypt.genSalt(10);
+//     this.password = await bcrypt.hash(this.password, salt);
+
+//     next();
+// });
+
+// module.exports = mongoose.model("User", userSchema);
+// =======
+// const mongoose = require("mongoose");
+// const bcrypt = require("bcryptjs");
+
+// const userSchema = new mongoose.Schema(
+// {
+//     firstName: String,
+//     lastName: String,
+
+//     email: {
+//         type: String,
+//         required: true,
+//         unique: true
+//     },
+
+//     password: {
+//         type: String,
+//         required: true
+//     },
+
+//     phone: String,
+
+//     role: {
+//         type: String,
+//         enum: [
+//             "SUPER_ADMIN",
+//             "ADMIN",
+//             "MANAGER",
+//             "CASHIER",
+//             "EMPLOYEE"
+//         ],
+//         default: "EMPLOYEE"
+//     },
+
+//     branch: {
+//         type: mongoose.Schema.Types.ObjectId,
+//         ref: "Branch"
+//     },
+
+//     isActive: {
+//         type: Boolean,
+//         default: true
+//     },
+
+//     lastLogin: Date
+// },
+// { timestamps: true }
+// );
+
+// userSchema.pre("save", async function(next) {
+//     if(!this.isModified("password")) return next();
+
+//     const salt = await bcrypt.genSalt(10);
+//     this.password = await bcrypt.hash(this.password, salt);
+
+//     next();
+// });
+
+// userSchema.methods.matchPassword = async function(enteredPassword) {
+//     return await bcrypt.compare(enteredPassword, this.password);
+// };
+
+// module.exports = mongoose.model("User", userSchema);
+// >>>>>>> ad203315202fdc745ae073c346658838b03209d0
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
-{
-    firstName: String,
-    lastName: String,
+	{
+		firstName: String,
 
-    email: {
-        type: String,
-        required: true,
-        unique: true
-    },
+		lastName: String,
 
-    password: {
-        type: String,
-        required: true
-    },
+		email: {
+			type: String,
+			required: true,
+			unique: true,
+		},
 
-    phone: String,
+		password: {
+			type: String,
+			required: true,
+		},
 
-    role: {
-        type: String,
-        enum: [
-            "SUPER_ADMIN",
-            "ADMIN",
-            "MANAGER",
-            "CASHIER",
-            "EMPLOYEE"
-        ],
-        default: "EMPLOYEE"
-    },
+		phone: String,
 
-    branch: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Branch"
-    },
+		role: {
+			type: String,
+			enum: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CASHIER', 'EMPLOYEE'],
+			default: 'EMPLOYEE',
+		},
 
-    isActive: {
-        type: Boolean,
-        default: true
-    },
+		branch: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Branch',
+		},
 
-    lastLogin: Date
-},
-{ timestamps: true }
+		isActive: {
+			type: Boolean,
+			default: true,
+		},
+
+		lastLogin: Date,
+	},
+	{ timestamps: true },
 );
 
-userSchema.pre("save", async function(next) {
-    if(!this.isModified("password")) return next();
+userSchema.pre('save', async function (next) {
+	if (!this.isModified('password')) {
+		return next();
+	}
 
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+	const salt = await bcrypt.genSalt(10);
+	this.password = await bcrypt.hash(this.password, salt);
 
-    next();
+	next();
 });
 
-module.exports = mongoose.model("User", userSchema);
+userSchema.methods.matchPassword = async function (enteredPassword) {
+	return await bcrypt.compare(enteredPassword, this.password);
+};
+
+module.exports = mongoose.model('User', userSchema);
