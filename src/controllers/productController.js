@@ -297,7 +297,7 @@ const getProductByBarcode = async (req, res) => {
 // Search and Filter Products
 const searchProducts = async (req, res) => {
     try {
-        const { keyword, brand, category, minPrice, maxPrice } = req.query;
+        const { keyword, brand, category, supplier, minPrice, maxPrice } = req.query;
 
         let query = {
             isActive: true
@@ -317,6 +317,10 @@ const searchProducts = async (req, res) => {
 
         if (category) {
             query.category = category;
+        }
+
+        if (supplier) {
+            query.supplier = supplier;
         }
 
         if (minPrice || maxPrice) {
