@@ -1,8 +1,14 @@
-require("dotenv").config();
+const path = require("path");
 const dns = require("dns");
+
+require("dotenv").config({
+  path: path.resolve(__dirname, "../.env"),
+});
+
 if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder("ipv4first");
+  dns.setDefaultResultOrder("ipv4first");
 }
+
 const http = require("http");
 const { Server } = require("socket.io");
 const app = require("./app");
@@ -11,57 +17,56 @@ const sockethandler = require("./sockets/sockethandler");
 const setupNotificationSockets = require("./sockets/notificationSockets");
 const { initInventoryAlertJob } = require("./jobs/inventoryAlertJob");
 
-// --- DB CONNECTION AND START SERVER ---
 const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
 
-connectDB()
-  .then(async () => {
-    // Auto seed employee database data if empty
-    const seedEmployees = require("./utils/seedEmployees");
-    await seedEmployees();
-
-    // --- HTTP SERVER WRAPPER ---
-    const server = http.createServer(app);
-
-    // --- SOCKET.IO SERVICE ATTACHMENT ---
-    const io = new Server(server, {
-        cors: {
-            origin: "*", // Adjust origins in production environments for tightened CORS security
-            methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-            credentials: true
-        }
-    });
-
-    // Make io globally accessible
-    global.io = io;
-
-    // Mount socket.io instance onto the express app context so controllers can access it
-    app.set("io", io);
-
-    // Initialize real‑time websocket listener events
-    sockethandler(io);
-    setupNotificationSockets(io);
-
-    // --- BACKGROUND SERVICES SCHEDULES ---
-    initInventoryAlertJob();
-
-    // --- PORT LISTEN BINDING ---
-    const runningServer = server.listen(PORT, () => {
-        console.log(`================================================================`);
-        console.log(`🚀 POS RETAIL SYSTEM SERVER RUNNING`);
-        console.log(`   Running Environment : ${process.env.NODE_ENV || "development"}`);
-        console.log(`   Listening Port      : ${PORT}`);
-        console.log(`   Healthcheck Route   : http://localhost:${PORT}/health`);
-        console.log(`================================================================`);
-    });
-
-    // Handle unhandled promise rejections safely
-    process.on("unhandledRejection", (err, promise) => {
-        console.error(`[Process Error] Unhandled Rejection: ${err.message}`);
-        runningServer.close(() => process.exit(1));
-    });
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err);
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} is already in use. Stop the old server or change PORT in .env.`);
     process.exit(1);
-  });
+  }
+
+  console.error(`Server error: ${error.message}`);
+  process.exit(1);
+});
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    credentials: true,
+  },
+});
+
+global.io = io;
+app.set("io", io);
+sockethandler(io);
+setupNotificationSockets(io);
+
+const startBackgroundServices = async (dbConnection) => {
+  if (!dbConnection) {
+    console.warn("Skipping database-backed startup jobs because MongoDB is not connected.");
+    return;
+  }
+
+  const seedEmployees = require("./utils/seedEmployees");
+  await seedEmployees();
+  initInventoryAlertJob();
+};
+
+server.listen(PORT, async () => {
+  console.log("================================================================");
+  console.log("POS RETAIL SYSTEM SERVER RUNNING");
+  console.log(`   Running Environment : ${process.env.NODE_ENV || "development"}`);
+  console.log(`   Listening Port      : ${PORT}`);
+  console.log(`   Healthcheck Route   : http://localhost:${PORT}/health`);
+  console.log("================================================================");
+
+  const dbConnection = await connectDB();
+  await startBackgroundServices(dbConnection);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error(`[Process Error] Unhandled Rejection: ${err.message}`);
+  server.close(() => process.exit(1));
+});
