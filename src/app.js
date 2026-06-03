@@ -1,7 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 
-// Import routes
+// Import routes from tharuka branch
+const authRoutes = require('./routes/authRoutes');
+const promotionRoutes = require('./routes/promotionRoutes');
+const supplierRoutes = require('./routes/supplierRoutes');
+const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
+
+// Import routes from Dev branch
 const recommendationsRoutes = require('./routes/recommendations');
 const chatRoutes = require('./routes/chat');
 
@@ -12,16 +18,36 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Default route
+// Default routes
 app.get('/', (req, res) => {
-    res.send('AI Retail POS API is running...');
+    res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
 });
 
-// Mount Routes
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Server running' });
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Server running' });
+});
+
+// Mount All Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/suppliers', supplierRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/chat', chatRoutes);
 
-// Error handling middleware
+// 404 Route not found handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: `Route not found: ${req.method} ${req.originalUrl}`,
+    });
+});
+
+// Global Error handling middleware
 app.use((err, req, res, next) => {
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
     res.status(statusCode).json({
