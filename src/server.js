@@ -18,6 +18,7 @@ const setupNotificationSockets = require('./sockets/notificationSockets');
 const { initInventoryAlertJob } = require('./jobs/inventoryAlertJob');
 
 const PORT = process.env.PORT || 5000;
+
 const server = http.createServer(app);
 
 server.on('error', (error) => {
