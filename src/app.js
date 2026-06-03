@@ -14,6 +14,7 @@ const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
+const customerRoutes = require("./routes/customerRoutes");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use("/api/customers", customerRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
