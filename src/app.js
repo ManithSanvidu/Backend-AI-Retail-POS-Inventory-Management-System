@@ -9,7 +9,12 @@ const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 
 // Import routes from Dev branch
 const recommendationsRoutes = require('./routes/recommendations');
-const chatRoutes = require('./routes/chat');
+// WORKAROUND: routes/chat.js is missing from repo (pre-existing issue from Dev merge).
+// TODO: uncomment once Chat team adds their route file.
+// const chatRoutes = require('./routes/chat');
+
+// Import routes from Tharsiga — Reporting Module
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 
@@ -37,7 +42,8 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
-app.use('/api/chat', chatRoutes);
+// app.use('/api/chat', chatRoutes); // Commented out — routes/chat.js file missing
+app.use('/api/reports', reportRoutes);
 
 // 404 Route not found handler
 app.use((req, res) => {
