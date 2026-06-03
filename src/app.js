@@ -127,6 +127,7 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
+const salesRoutes     = require('./routes/salesRoutes'); 
 
 const app = express();
 
@@ -150,6 +151,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/sales', salesRoutes);
 
 app.use((req, res) => {
 	res.status(404).json({
