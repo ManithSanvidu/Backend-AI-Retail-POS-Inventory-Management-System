@@ -11,6 +11,9 @@ const salesRoutes     = require('./routes/salesRoutes');
 const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const recommendationsRoutes = require('./routes/recommendations');
+const chatRoutes = require('./routes/chat');
+const nlqueryRoutes = require('./routes/nlquery');
+const decisionsRoutes = require('./routes/decisions');
 const userRoutes = require('./routes/userRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const productRoutes = require('./routes/productRoutes');
@@ -30,6 +33,11 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/', (req, res) => {
     res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
 });
+
+// Mount AI Routes
+app.use('/api/chat', chatRoutes);
+app.use('/api/nlquery', nlqueryRoutes);
+app.use('/api/decisions', decisionsRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
