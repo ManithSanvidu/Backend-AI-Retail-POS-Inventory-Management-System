@@ -172,12 +172,26 @@ const adjustInventoryWithLog = async ({
     });
 };
 
+const getRequestBody = (req) => req.body || {};
+
 const createTransfer = async (req, res) => {
     try {
-        const { fromBranch, toBranch, items, notes } = req.body;
+        const body = getRequestBody(req);
+        const { fromBranch, toBranch, items, notes } = body;
+
+        if (!Object.keys(body).length) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Request body is empty. In Postman: open the Body tab → select raw → choose JSON → paste your JSON payload."
+            });
+        }
 
         if (!fromBranch || !toBranch) {
-            return res.status(400).json({ success: false, message: "fromBranch and toBranch are required." });
+            return res.status(400).json({
+                success: false,
+                message: "fromBranch and toBranch are required in the JSON body."
+            });
         }
 
         if (fromBranch === toBranch) {
@@ -242,7 +256,7 @@ const updateTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: "Only PENDING transfers can be updated." });
         }
 
-        const { fromBranch, toBranch, items, notes } = req.body;
+        const { fromBranch, toBranch, items, notes } = getRequestBody(req);
         const nextFrom = fromBranch || transfer.fromBranch;
         const nextTo = toBranch || transfer.toBranch;
         const nextItems = items || transfer.items;
@@ -418,7 +432,7 @@ const cancelTransfer = async (req, res) => {
 
     try {
         const transfer = await StockTransfer.findById(req.params.id).session(session);
-        const { reason } = req.body;
+        const { reason } = getRequestBody(req);
 
         if (!transfer) {
             await session.abortTransaction();
