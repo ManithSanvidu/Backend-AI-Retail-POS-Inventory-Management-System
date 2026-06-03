@@ -1,0 +1,66 @@
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+const authRoutes = require('./routes/authRoutes');
+const promotionRoutes = require('./routes/promotionRoutes');
+const supplierRoutes = require('./routes/supplierRoutes');
+const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
+const recommendationsRoutes = require('./routes/recommendations');
+const userRoutes = require('./routes/userRoutes');
+const branchRoutes = require('./routes/branchRoutes');
+const productRoutes = require('./routes/productRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const employeeRoutes = require('./routes/employeeRoutes');
+const customerRoutes = require("./routes/customerRoutes");
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/', (req, res) => {
+    res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
+});
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Server running' });
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Server running' });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/suppliers', supplierRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/branches', branchRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use("/api/customers", customerRoutes);
+
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: `Route not found: ${req.method} ${req.originalUrl}`,
+    });
+});
+
+app.use((err, req, res, next) => {
+    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+
+    res.status(statusCode).json({
+        success: false,
+        error: err.message,
+        stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+    });
+});
+
+module.exports = app;
