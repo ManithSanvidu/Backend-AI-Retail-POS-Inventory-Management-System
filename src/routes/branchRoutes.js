@@ -10,6 +10,7 @@ const {
   searchBranches,
   getBranchInventory,
   getBranchSales,
+  getBranchEmployees,
   getBranchPerformance,
   updateBranchSettings,
 } = require("../controllers/branchController");
@@ -45,6 +46,9 @@ router.get("/:id/inventory", getBranchInventory);
 
 // Get branch sales
 router.get("/:id/sales", getBranchSales);
+
+// Get branch employees
+router.get("/:id/employees", getBranchEmployees);
 
 // Get branch performance analytics
 router.get("/:id/performance", getBranchPerformance);

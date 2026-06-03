@@ -18,9 +18,9 @@ const employeeSchema = new mongoose.Schema(
 
     salary: Number,
 
-    branch: {
-        type: String, // String to support both ID keys like "1", "2" and ObjectIds
-        default: "1"
+    branch:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"Branch"
     },
 
     joiningDate: Date,

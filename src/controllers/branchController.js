@@ -159,6 +159,23 @@ const getBranchSales = async (req, res) => {
 };
 
 // ===============================
+// BRANCH EMPLOYEES
+// ===============================
+const getBranchEmployees = async (req, res) => {
+  try {
+    const employees = await Employee.find({
+      branch: req.params.id,
+    });
+
+    res.status(200).json(employees);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+// ===============================
 // BRANCH PERFORMANCE METRICS
 // ===============================
 const getBranchPerformance = async (req, res) => {
@@ -234,6 +251,7 @@ module.exports = {
   searchBranches,
   getBranchInventory,
   getBranchSales,
+  getBranchEmployees,
   getBranchPerformance,
   updateBranchSettings,
 };
