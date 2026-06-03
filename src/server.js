@@ -43,6 +43,9 @@ app.set("io", io);
 sockethandler(io);
 setupNotificationSockets(io);
 
+// Initialize background workers
+require('./workers/notificationWorker');
+
 const startBackgroundServices = async (dbConnection) => {
   if (!dbConnection) {
     console.warn("Skipping database-backed startup jobs because MongoDB is not connected.");
