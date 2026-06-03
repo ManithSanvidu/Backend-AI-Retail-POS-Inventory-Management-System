@@ -1,5 +1,6 @@
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
+const systemEvents = require("../events/eventBus.js");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -62,6 +63,16 @@ const addProduct = async (req, res) => {
             reorderLevel,
             unit,
             isActive
+        });
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'New Product Added',
+            message: `${name} has been added to the product catalog.`,
+            channels: ['in-app']
         });
 
         res.status(201).json({
@@ -229,6 +240,16 @@ const deleteProduct = async (req, res) => {
         }
 
         await Product.findByIdAndDelete(req.params.id);
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, 
+            category: 'INVENTORY',
+            type: 'WARNING',
+            title: 'Product Deleted',
+            message: `Product "${product.name}" has been permanently deleted from the catalog.`,
+            channels: ['in-app', 'email']
+        });
 
         res.status(200).json({
             success: true,
