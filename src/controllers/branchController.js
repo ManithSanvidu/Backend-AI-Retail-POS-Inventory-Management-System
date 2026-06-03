@@ -45,8 +45,7 @@ const getBranchById = async (req, res) => {
   try {
     const branch = await Branch.findById(req.params.id)
       .populate("manager")
-      .populate("employees");
-
+      
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
@@ -160,6 +159,23 @@ const getBranchSales = async (req, res) => {
 };
 
 // ===============================
+// BRANCH EMPLOYEES
+// ===============================
+const getBranchEmployees = async (req, res) => {
+  try {
+    const employees = await Employee.find({
+      branch: req.params.id,
+    });
+
+    res.status(200).json(employees);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+// ===============================
 // BRANCH PERFORMANCE METRICS
 // ===============================
 const getBranchPerformance = async (req, res) => {
@@ -235,6 +251,7 @@ module.exports = {
   searchBranches,
   getBranchInventory,
   getBranchSales,
+  getBranchEmployees,
   getBranchPerformance,
   updateBranchSettings,
 };

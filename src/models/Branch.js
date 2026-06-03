@@ -20,6 +20,11 @@ const branchSchema = new mongoose.Schema(
         ref: "Employee"
     },
 
+    settings: {
+        type: Object,
+        default: {}
+    },
+
     isActive: {
         type: Boolean,
         default: true
