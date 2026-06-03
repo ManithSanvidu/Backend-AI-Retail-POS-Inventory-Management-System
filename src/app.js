@@ -9,7 +9,6 @@ const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 
 // Import routes from Dev branch
 const recommendationsRoutes = require('./routes/recommendations');
-const chatRoutes = require('./routes/chat');
 
 const app = express();
 
@@ -37,7 +36,6 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
-app.use('/api/chat', chatRoutes);
 
 // 404 Route not found handler
 app.use((req, res) => {

@@ -27,6 +27,32 @@ const transactionSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
+const contractSchema = new mongoose.Schema({
+  startDate: {
+    type: Date
+  },
+  endDate: {
+    type: Date
+  },
+  status: {
+    type: String,
+    enum: {
+      values: ['Active', 'Expired', 'Terminated', 'Under Negotiation'],
+      message: '{VALUE} is not a valid contract status'
+    },
+    default: 'Under Negotiation'
+  },
+  terms: {
+    type: String
+  },
+  paymentTerms: {
+    type: String
+  },
+  sla: {
+    type: String
+  }
+}, { _id: false });
+
 const performanceSchema = new mongoose.Schema({
   onTimeDelivery: {
     type: Number,
@@ -123,6 +149,11 @@ const supplierSchema = new mongoose.Schema(
 
     performance: {
       type: performanceSchema,
+      default: () => ({})
+    },
+
+    contract: {
+      type: contractSchema,
       default: () => ({})
     },
 

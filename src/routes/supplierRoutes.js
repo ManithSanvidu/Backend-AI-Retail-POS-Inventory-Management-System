@@ -16,6 +16,18 @@ const requireMongoConnection = (req, res, next) => {
   next();
 };
 
+// Performance Reports
+router.get("/reports/performance", controller.getAllPerformanceReports);
+router.get("/:id/performance", requireMongoConnection, controller.getPerformanceReport);
+
+// Procurement and Transactions
+router.post("/:id/transactions", requireMongoConnection, controller.addTransaction);
+router.get("/:id/procurement", requireMongoConnection, controller.getProcurementHistory);
+
+// Contract Management
+router.get("/:id/contract", requireMongoConnection, controller.getContract);
+router.put("/:id/contract", requireMongoConnection, controller.updateContract);
+
 // CRUD for Supplier
 router.post("/", requireMongoConnection, controller.createSupplier);
 router.get("/", controller.getSuppliers);

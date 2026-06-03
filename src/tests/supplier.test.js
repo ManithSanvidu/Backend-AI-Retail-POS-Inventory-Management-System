@@ -205,3 +205,154 @@ test('DELETE /api/suppliers/:id returns 503 status before MongoDB connects', asy
     server.close();
   }
 });
+
+// 3. CONTRACT SCHEMA VALIDATION TESTS
+test('Supplier Schema validation succeeds with contract details', () => {
+  const validSupplier = new Supplier({
+    companyName: 'Harvest Co. Contracted',
+    contactPerson: 'Jane Doe',
+    email: 'jane@harvest.com',
+    phone: '+94771234568',
+    address: '456 Main Street, Colombo',
+    category: 'Grains & Rice',
+    taxId: 'TIN-87654321',
+    status: 'Active',
+    contract: {
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      status: 'Active',
+      terms: 'Delivery of 500kg rice monthly',
+      paymentTerms: 'Net 30',
+      sla: '95% on-time delivery rate'
+    }
+  });
+
+  const err = validSupplier.validateSync();
+  assert.equal(err, undefined);
+  assert.equal(validSupplier.contract.status, 'Active');
+  assert.equal(validSupplier.contract.paymentTerms, 'Net 30');
+});
+
+test('Supplier Schema validation fails with invalid contract status enum value', () => {
+  const invalidContractSupplier = new Supplier({
+    companyName: 'Harvest Co.',
+    contactPerson: 'John Doe',
+    email: 'john@harvest.com',
+    phone: '+94771234567',
+    address: '123 Main Street, Colombo',
+    category: 'Grains & Rice',
+    taxId: 'TIN-12345678',
+    contract: {
+      status: 'InvalidStatus'
+    }
+  });
+
+  const err = invalidContractSupplier.validateSync();
+  assert.ok(err);
+  assert.ok(err.errors['contract.status']);
+  assert.match(err.errors['contract.status'].message, /is not a valid contract status/);
+});
+
+// 4. NEW ENDPOINTS TESTS (OFFLINE)
+test('GET /api/suppliers/reports/performance returns empty array before MongoDB connects', async () => {
+  const server = app.listen(0);
+
+  try {
+    const response = await request(server, '/api/suppliers/reports/performance');
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.success, true);
+    assert.equal(response.body.count, 0);
+    assert.deepEqual(response.body.data, []);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/suppliers/:id/performance returns 503 status before MongoDB connects', async () => {
+  const server = app.listen(0);
+  const dummyId = new mongoose.Types.ObjectId().toString();
+
+  try {
+    const response = await request(server, `/api/suppliers/${dummyId}/performance`);
+
+    assert.equal(response.status, 503);
+    assert.equal(response.body.success, false);
+    assert.match(response.body.message, /MongoDB is not connected/);
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /api/suppliers/:id/transactions returns 503 status before MongoDB connects', async () => {
+  const server = app.listen(0);
+  const dummyId = new mongoose.Types.ObjectId().toString();
+
+  try {
+    const response = await request(server, `/api/suppliers/${dummyId}/transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'TXN-101',
+        amount: 5000,
+        itemsCount: 2,
+        status: 'Pending'
+      })
+    });
+
+    assert.equal(response.status, 503);
+    assert.equal(response.body.success, false);
+    assert.match(response.body.message, /MongoDB is not connected/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/suppliers/:id/procurement returns 503 status before MongoDB connects', async () => {
+  const server = app.listen(0);
+  const dummyId = new mongoose.Types.ObjectId().toString();
+
+  try {
+    const response = await request(server, `/api/suppliers/${dummyId}/procurement`);
+
+    assert.equal(response.status, 503);
+    assert.equal(response.body.success, false);
+    assert.match(response.body.message, /MongoDB is not connected/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/suppliers/:id/contract returns 503 status before MongoDB connects', async () => {
+  const server = app.listen(0);
+  const dummyId = new mongoose.Types.ObjectId().toString();
+
+  try {
+    const response = await request(server, `/api/suppliers/${dummyId}/contract`);
+
+    assert.equal(response.status, 503);
+    assert.equal(response.body.success, false);
+    assert.match(response.body.message, /MongoDB is not connected/);
+  } finally {
+    server.close();
+  }
+});
+
+test('PUT /api/suppliers/:id/contract returns 503 status before MongoDB connects', async () => {
+  const server = app.listen(0);
+  const dummyId = new mongoose.Types.ObjectId().toString();
+
+  try {
+    const response = await request(server, `/api/suppliers/${dummyId}/contract`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terms: 'Updated Terms' })
+    });
+
+    assert.equal(response.status, 503);
+    assert.equal(response.body.success, false);
+    assert.match(response.body.message, /MongoDB is not connected/);
+  } finally {
+    server.close();
+  }
+});
