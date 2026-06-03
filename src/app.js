@@ -19,6 +19,7 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const warehouseRoutes = require('./routes/warehouseRoutes');
 const customerRoutes = require("./routes/customerRoutes");
+const returnsRoutes = require("./routes/returnsRoutes");
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/returns", returnsRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
