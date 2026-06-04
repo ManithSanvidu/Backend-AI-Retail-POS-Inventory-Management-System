@@ -15,6 +15,9 @@ const processAlert = async (data) => {
       query._id = target.userId;
     } else if (target) {
       if (target.role) query.role = target.role.toUpperCase();
+      if (target.roles && Array.isArray(target.roles)) {
+        query.role = { $in: target.roles.map(r => r.toUpperCase()) };
+      }
       if (target.branchId) query.branch = target.branchId; // Auth team used 'branch' in User.js
     }
 
