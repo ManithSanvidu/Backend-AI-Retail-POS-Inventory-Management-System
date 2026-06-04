@@ -145,6 +145,10 @@ exports.getSalesReport = async (req, res, next) => {
             filter.branch = new mongoose.Types.ObjectId(branch);
         }
 
+        if (status && status !== 'All Statuses') {
+            filter.status = status;
+        }
+
         if (fromDate || toDate) {
             filter.createdAt = {};
             if (fromDate) filter.createdAt.$gte = new Date(fromDate);
@@ -216,7 +220,7 @@ exports.getInventoryReport = async (req, res, next) => {
                     as: 'productDetail',
                 },
             },
-            { $unwind: { path: '$productDetail', preserveNullAndEmpty: true } },
+            { $unwind: { path: '$productDetail', preserveNullAndEmptyArrays: true } },
             {
                 $group: {
                     _id: null,
@@ -307,7 +311,7 @@ exports.getBranchPerformance = async (req, res, next) => {
                     as: 'branchInfo',
                 },
             },
-            { $unwind: { path: '$branchInfo', preserveNullAndEmpty: true } },
+            { $unwind: { path: '$branchInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: 0,
@@ -409,7 +413,7 @@ exports.getScheduledReports = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────
 exports.exportPDF = async (req, res, next) => {
     try {
-        const { reportType, branch, fromDate, toDate } = req.body;
+        const { reportType, branch, fromDate, toDate, status, invoiceNumber } = req.body;
 
         let salesList = [];
         let summaryStats = SAMPLE_SUMMARY;
@@ -417,16 +421,23 @@ exports.exportPDF = async (req, res, next) => {
 
         if (isDbConnected()) {
             const filter = {};
-            if (branch && mongoose.Types.ObjectId.isValid(branch)) {
-                filter.branch = new mongoose.Types.ObjectId(branch);
-            }
-            if (fromDate || toDate) {
-                filter.createdAt = {};
-                if (fromDate) filter.createdAt.$gte = new Date(fromDate);
-                if (toDate) {
-                    const end = new Date(toDate);
-                    end.setHours(23, 59, 59, 999);
-                    filter.createdAt.$lte = end;
+            if (invoiceNumber) {
+                filter.invoiceNumber = invoiceNumber;
+            } else {
+                if (branch && mongoose.Types.ObjectId.isValid(branch)) {
+                    filter.branch = new mongoose.Types.ObjectId(branch);
+                }
+                if (status && status !== 'All Statuses') {
+                    filter.status = status;
+                }
+                if (fromDate || toDate) {
+                    filter.createdAt = {};
+                    if (fromDate) filter.createdAt.$gte = new Date(fromDate);
+                    if (toDate) {
+                        const end = new Date(toDate);
+                        end.setHours(23, 59, 59, 999);
+                        filter.createdAt.$lte = end;
+                    }
                 }
             }
 
@@ -455,7 +466,13 @@ exports.exportPDF = async (req, res, next) => {
 
         if (!isRealDb) {
             salesList = SAMPLE_SALES.filter(s => {
+                if (invoiceNumber) {
+                    return s.id === invoiceNumber;
+                }
                 if (branch && branch !== 'All Branches' && branch !== 'All Types' && s.branch.toLowerCase() !== branch.toLowerCase().replace(' branch', '')) {
+                    return false;
+                }
+                if (status && status !== 'All Statuses' && s.status !== status) {
                     return false;
                 }
                 return true;
@@ -485,9 +502,9 @@ exports.exportPDF = async (req, res, next) => {
         doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text('EXECUTIVE SUMMARY', { underline: true });
         doc.moveDown(0.5);
         doc.fontSize(10).font('Helvetica');
-        doc.text(`Total Sales Amount  : LKR ${summaryStats.totalSales.toLocaleString()}`);
+        doc.text(`Total Sales Amount  : LKR ${summaryStats.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
         doc.text(`Total Orders Count  : ${summaryStats.totalOrders}`);
-        doc.text(`Estimated Profit    : LKR ${summaryStats.netRevenue.toLocaleString()} (est. 75% margin)`);
+        doc.text(`Estimated Profit    : LKR ${summaryStats.netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (est. 75% margin)`);
         doc.text(`Active Branches Count: ${summaryStats.activeBranches}`);
         doc.text(`Low Stock Alerts    : ${summaryStats.lowStockItems} items`);
         doc.text(`Data Verification   : ${isRealDb ? 'Verified MongoDB Production Records' : 'Static Fallback Sample Dataset'}`);
@@ -498,29 +515,27 @@ exports.exportPDF = async (req, res, next) => {
         doc.moveDown(0.5);
 
         const tableTop = doc.y;
-        doc.fillColor('#475569').fontSize(9).font('Helvetica-Bold');
-        doc.text('REPORT ID', 50, tableTop);
-        doc.text('BRANCH', 140, tableTop);
-        doc.text('CASHIER / TYPE', 240, tableTop);
-        doc.text('DATE / PERIOD', 350, tableTop);
-        doc.text('AMOUNT', 460, tableTop);
+        
+        const drawTableHeader = (yPos) => {
+            doc.rect(50, yPos - 4, 495, 20).fill('#2563eb');
+            doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
+            doc.text('REPORT ID', 55, yPos);
+            doc.text('BRANCH', 140, yPos);
+            doc.text('CASHIER / TYPE', 230, yPos);
+            doc.text('DATE / PERIOD', 330, yPos);
+            doc.text('AMOUNT', 415, yPos, { width: 75, align: 'right' });
+            doc.text('STATUS', 495, yPos, { width: 50, align: 'right' });
+        };
 
-        doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(50, tableTop + 14).lineTo(550, tableTop + 14).stroke();
-        doc.font('Helvetica').fillColor('#334155');
+        drawTableHeader(tableTop);
+        doc.font('Helvetica');
 
         let y = tableTop + 24;
-        salesList.forEach((item, index) => {
-            if (y > 700) {
+        salesList.forEach((item) => {
+            if (y > 720) {
                 doc.addPage();
                 y = 50;
-                doc.fillColor('#475569').fontSize(9).font('Helvetica-Bold');
-                doc.text('REPORT ID', 50, y);
-                doc.text('BRANCH', 140, y);
-                doc.text('CASHIER / TYPE', 240, y);
-                doc.text('DATE / PERIOD', 350, y);
-                doc.text('AMOUNT', 460, y);
-                doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(50, y + 14).lineTo(550, y + 14).stroke();
-                doc.font('Helvetica').fillColor('#334155');
+                drawTableHeader(y);
                 y += 24;
             }
 
@@ -530,13 +545,18 @@ exports.exportPDF = async (req, res, next) => {
             const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : (item.period || 'N/A');
             
             const rawAmount = item.amount !== undefined ? item.amount : (item.finalAmount !== undefined ? item.finalAmount : (item.totalAmount || 0));
-            const amountStr = typeof rawAmount === 'number' ? `LKR ${rawAmount.toLocaleString()}` : String(rawAmount);
+            const amountStr = typeof rawAmount === 'number' ? `LKR ${rawAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(rawAmount);
+            const statusStr = item.status || 'Completed';
 
-            doc.text(idStr, 50, y);
-            doc.text(branchStr, 140, y);
-            doc.text(cashierOrType, 240, y, { width: 100, height: 15, ellipsis: true });
-            doc.text(dateStr, 350, y);
-            doc.text(amountStr, 460, y);
+            doc.strokeColor('#e2e8f0').lineWidth(0.5).moveTo(50, y + 14).lineTo(545, y + 14).stroke();
+
+            doc.fillColor('#334155').font('Helvetica').fontSize(8.5);
+            doc.text(idStr, 55, y, { width: 80, height: 15, ellipsis: true });
+            doc.text(branchStr, 140, y, { width: 85, height: 15, ellipsis: true });
+            doc.text(cashierOrType, 230, y, { width: 95, height: 15, ellipsis: true });
+            doc.text(dateStr, 330, y, { width: 80, height: 15, ellipsis: true });
+            doc.text(amountStr, 415, y, { width: 75, align: 'right' });
+            doc.text(statusStr, 495, y, { width: 50, align: 'right' });
 
             y += 20;
         });
@@ -553,7 +573,7 @@ exports.exportPDF = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────
 exports.exportExcel = async (req, res, next) => {
     try {
-        const { reportType, branch, fromDate, toDate } = req.body;
+        const { reportType, branch, fromDate, toDate, status, invoiceNumber } = req.body;
 
         let salesList = [];
         let summaryStats = SAMPLE_SUMMARY;
@@ -561,16 +581,23 @@ exports.exportExcel = async (req, res, next) => {
 
         if (isDbConnected()) {
             const filter = {};
-            if (branch && mongoose.Types.ObjectId.isValid(branch)) {
-                filter.branch = new mongoose.Types.ObjectId(branch);
-            }
-            if (fromDate || toDate) {
-                filter.createdAt = {};
-                if (fromDate) filter.createdAt.$gte = new Date(fromDate);
-                if (toDate) {
-                    const end = new Date(toDate);
-                    end.setHours(23, 59, 59, 999);
-                    filter.createdAt.$lte = end;
+            if (invoiceNumber) {
+                filter.invoiceNumber = invoiceNumber;
+            } else {
+                if (branch && mongoose.Types.ObjectId.isValid(branch)) {
+                    filter.branch = new mongoose.Types.ObjectId(branch);
+                }
+                if (status && status !== 'All Statuses') {
+                    filter.status = status;
+                }
+                if (fromDate || toDate) {
+                    filter.createdAt = {};
+                    if (fromDate) filter.createdAt.$gte = new Date(fromDate);
+                    if (toDate) {
+                        const end = new Date(toDate);
+                        end.setHours(23, 59, 59, 999);
+                        filter.createdAt.$lte = end;
+                    }
                 }
             }
 
@@ -599,7 +626,13 @@ exports.exportExcel = async (req, res, next) => {
 
         if (!isRealDb) {
             salesList = SAMPLE_SALES.filter(s => {
+                if (invoiceNumber) {
+                    return s.id === invoiceNumber;
+                }
                 if (branch && branch !== 'All Branches' && branch !== 'All Types' && s.branch.toLowerCase() !== branch.toLowerCase().replace(' branch', '')) {
+                    return false;
+                }
+                if (status && status !== 'All Statuses' && s.status !== status) {
                     return false;
                 }
                 return true;
@@ -613,9 +646,9 @@ exports.exportExcel = async (req, res, next) => {
         csvContent += `Generation Date,${new Date().toLocaleString()}\n\n`;
 
         csvContent += 'EXECUTIVE SUMMARY\n';
-        csvContent += `Total Sales Amount,LKR ${summaryStats.totalSales}\n`;
+        csvContent += `Total Sales Amount,LKR ${summaryStats.totalSales.toFixed(2)}\n`;
         csvContent += `Total Orders Count,${summaryStats.totalOrders}\n`;
-        csvContent += `Estimated Profit,LKR ${summaryStats.netRevenue}\n`;
+        csvContent += `Estimated Profit,LKR ${summaryStats.netRevenue.toFixed(2)}\n`;
         csvContent += `Active Branches,${summaryStats.activeBranches}\n`;
         csvContent += `Low Stock Alerts,${summaryStats.lowStockItems}\n`;
         csvContent += `Data Source,${isRealDb ? 'Live MongoDB Production' : 'Mock Sample Fallback'}\n\n`;
@@ -635,7 +668,7 @@ exports.exportExcel = async (req, res, next) => {
                 return s.includes(',') || s.includes('\n') ? `"${s}"` : s;
             };
 
-            csvContent += `${clean(idStr)},${clean(branchStr)},${clean(cashierOrType)},${clean(dateStr)},${rawAmount},${clean(statusStr)}\n`;
+            csvContent += `${clean(idStr)},${clean(branchStr)},${clean(cashierOrType)},${clean(dateStr)},${rawAmount.toFixed(2)},${clean(statusStr)}\n`;
         });
 
         res.setHeader('Content-Type', 'text/csv');

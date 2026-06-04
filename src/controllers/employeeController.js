@@ -2,6 +2,7 @@ const Employee = require("../models/Employee");
 const EmployeeSchedule = require("../models/EmployeeSchedule");
 const EmployeeAttendance = require("../models/EmployeeAttendance");
 const EmployeePerformance = require("../models/EmployeePerformance");
+const systemEvents = require("../events/eventBus");
 
 // ==========================================
 // 👥 EMPLOYEE CRUD OPERATIONS
@@ -117,6 +118,16 @@ const addEmployee = async (req, res) => {
             date: currentMonth
         });
 
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, // Send to all Admins
+            category: 'EMPLOYEE',
+            type: 'INFO',
+            title: 'New Employee Hired',
+            message: `${firstName} ${lastName} has been hired as a ${role} at Branch ${branch}.`,
+            channels: ['in-app', 'email']
+        });
+
         return res.status(201).json({
             success: true,
             employee: newEmployee,
@@ -211,6 +222,16 @@ const deleteEmployee = async (req, res) => {
         }
 
         await employee.deleteOne();
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, // Send to all Admins
+            category: 'SECURITY',
+            type: 'WARNING',
+            title: 'Employee Terminated',
+            message: `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) has been removed from the system.`,
+            channels: ['in-app', 'email']
+        });
 
         return res.status(200).json({
             success: true,

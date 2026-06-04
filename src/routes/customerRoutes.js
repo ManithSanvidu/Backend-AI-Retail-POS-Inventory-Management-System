@@ -9,8 +9,15 @@ router.get("/:id", controller.getCustomer);
 router.put("/:id", controller.updateCustomer);
 router.delete("/:id", controller.deleteCustomer);
 
-// EXTRA FEATURES (Part 6 requirements)
+router.get(
+    "/branch/:branchId",
+    controller.getCustomersByBranch
+);
+
+// EXTRA FEATURES 
 // router.get("/:id/purchases", controller.purchaseHistory);
-// router.get("/analytics/overview", controller.analytics);
+router.get("/analytics/overview", controller.analytics);
+
+router.post("/loyalty/add", controller.addLoyaltyPoints);
 
 module.exports = router;

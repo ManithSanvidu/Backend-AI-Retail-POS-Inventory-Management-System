@@ -1,32 +1,46 @@
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
 
-// Import routes from tharuka branch
+dotenv.config();
+
 const authRoutes = require('./routes/authRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
+const salesRoutes     = require('./routes/salesRoutes'); 
+
 const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
-
-// Import routes from Dev branch
 const recommendationsRoutes = require('./routes/recommendations');
-// WORKAROUND: routes/chat.js is missing from repo (pre-existing issue from Dev merge).
-// TODO: uncomment once Chat team adds their route file.
-// const chatRoutes = require('./routes/chat');
+const chatRoutes = require('./routes/chat');
+const nlqueryRoutes = require('./routes/nlquery');
+const decisionsRoutes = require('./routes/decisions');
+const userRoutes = require('./routes/userRoutes');
+const branchRoutes = require('./routes/branchRoutes');
+const productRoutes = require('./routes/productRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const employeeRoutes = require('./routes/employeeRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const warehouseRoutes = require('./routes/warehouseRoutes');
+const customerRoutes = require("./routes/customerRoutes");
+const returnsRoutes = require("./routes/returnsRoutes");
 
 // Import routes from Tharsiga — Reporting Module
 const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Default routes
 app.get('/', (req, res) => {
     res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
 });
+
+// Mount AI Routes
+app.use('/api/chat', chatRoutes);
+app.use('/api/nlquery', nlqueryRoutes);
+app.use('/api/decisions', decisionsRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
@@ -36,16 +50,25 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
 });
 
-// Mount All Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/sales', salesRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
-// app.use('/api/chat', chatRoutes); // Commented out — routes/chat.js file missing
+app.use('/api/users', userRoutes);
+app.use('/api/branches', branchRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/warehouses', warehouseRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/returns", returnsRoutes);
+
+// Mount reports route
 app.use('/api/reports', reportRoutes);
 
-// 404 Route not found handler
 app.use((req, res) => {
     res.status(404).json({
         success: false,
@@ -53,9 +76,9 @@ app.use((req, res) => {
     });
 });
 
-// Global Error handling middleware
 app.use((err, req, res, next) => {
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+
     res.status(statusCode).json({
         success: false,
         error: err.message,
