@@ -14,7 +14,7 @@ const processAlert = async (data) => {
     if (target && target.userId) {
       query._id = target.userId;
     } else if (target) {
-      if (target.role) query.role = target.role;
+      if (target.role) query.role = target.role.toLowerCase();
       if (target.branchId) query.branch = target.branchId; // Auth team used 'branch' in User.js
     }
 
