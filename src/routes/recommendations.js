@@ -12,13 +12,20 @@ const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5001';
 const dataPath = path.join(__dirname, '../data/recommendations.json');
 let fallbackData = {};
 
-try {
-    const rawData = fs.readFileSync(dataPath, 'utf8');
-    fallbackData = JSON.parse(rawData);
-    console.log("✅ Fallback recommendation data loaded successfully");
-} catch (error) {
-    console.error("❌ Failed to load recommendations.json:", error.message);
-}
+const loadRecommendations = () => {
+    try {
+        const rawData = fs.readFileSync(dataPath, 'utf8');
+        fallbackData = JSON.parse(rawData);
+        console.log("✅ Fallback recommendation data loaded successfully");
+        return true;
+    } catch (error) {
+        console.error("❌ Failed to load recommendations.json:", error.message);
+        return false;
+    }
+};
+
+// Initial load on startup
+loadRecommendations();
 
 // Helper to format success response
 const formatResponse = (data, source) => ({
@@ -201,30 +208,40 @@ router.get('/analytics/insights', async (req, res) => {
 // 8. POST /api/recommendations/refresh
 router.post('/refresh', (req, res) => {
     try {
-        // Re-read the fallback JSON from disk to simulate a model refresh
-        const rawData = fs.readFileSync(dataPath, 'utf8');
-        const reloaded = JSON.parse(rawData);
-        Object.assign(fallbackData, reloaded);
+        const success = loadRecommendations();
+        if (success) {
+            // Alert Managers
+            systemEvents.emit('SEND_ALERT', {
+                target: { role: 'Manager' }, 
+                category: 'SYSTEM',
+                type: 'INFO',
+                title: 'AI Recommendations Updated',
+                message: 'The AI Recommendation Engine has been retrained with new sales and inventory data.',
+                channels: ['in-app']
+            });
 
-        // Trigger a notification that the model has been refreshed
-        systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Manager' },
-            category: 'SYSTEM',
-            type: 'INFO',
-            title: 'AI Recommendations Updated',
-            message: 'The AI Recommendation Engine has been retrained with new sales and inventory data.',
-            channels: ['in-app']
-        });
+            // Alert Admins
+            systemEvents.emit('SEND_ALERT', {
+                target: { role: 'Admin' }, 
+                category: 'SYSTEM',
+                type: 'INFO',
+                title: 'AI Recommendations Updated',
+                message: 'The AI Recommendation Engine has been retrained with new sales and inventory data.',
+                channels: ['in-app']
+            });
 
-        res.json({
-            success: true,
-            message: "Recommendation engine retrained and reloaded successfully",
-            stats: {
-                salesRecs: fallbackData.salesRecommendations?.length || 0,
-                inventoryRecs: fallbackData.inventoryRecommendations?.length || 0,
-                crossSellPairs: fallbackData.crossSellRecommendations?.length || 0
-            }
-        });
+            res.json({
+                success: true,
+                message: "Recommendation engine retrained and reloaded successfully",
+                stats: {
+                    salesRecs: fallbackData.salesRecommendations?.length || 0,
+                    inventoryRecs: fallbackData.inventoryRecommendations?.length || 0,
+                    crossSellPairs: fallbackData.crossSellRecommendations?.length || 0
+                }
+            });
+        } else {
+            res.status(500).json({ success: false, error: "Failed to reload recommendations data" });
+        }
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
