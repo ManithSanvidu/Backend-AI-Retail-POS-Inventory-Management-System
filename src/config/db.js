@@ -1,3 +1,4 @@
+const dns = require('dns');
 const mongoose = require('mongoose');
 
 mongoose.set('bufferCommands', false);
@@ -13,16 +14,25 @@ const connectDB = async () => {
     }
 
     try {
+        if (mongoUri.startsWith('mongodb+srv://')) {
+            const dnsServers = (process.env.MONGO_DNS_SERVERS || '8.8.8.8,1.1.1.1')
+                .split(',')
+                .map((server) => server.trim())
+                .filter(Boolean);
+
+            dns.setServers(dnsServers);
+        }
+
         const conn = await mongoose.connect(mongoUri, {
             dbName,
             serverSelectionTimeoutMS: 30000,
         });
 
         console.log(`MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
-
         return conn;
     } catch (error) {
         console.warn(`MongoDB connection failed: ${error.message}`);
+        console.warn('Server will continue running, but MongoDB features are disabled.');
         return null;
     }
 };

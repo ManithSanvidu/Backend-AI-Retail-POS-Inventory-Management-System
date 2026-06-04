@@ -76,12 +76,12 @@ const addProduct = async (req, res) => {
 
         // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'INFO',
             title: 'New Product Added',
             message: `${name} has been added to the product catalog.`,
-            channels: ['in-app']
+            channels: ['in-app', 'email']
         });
 
         res.status(201).json({
@@ -199,6 +199,15 @@ const updateProduct = async (req, res) => {
 
         const updatedProduct = await product.save();
 
+        systemEvents.emit('SEND_ALERT', {
+            target: { roles: ['Admin', 'Manager'] }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'Product Updated',
+            message: `Product "${updatedProduct.name}" details have been updated.`,
+            channels: ['in-app', 'email']
+        });
+
         res.status(200).json({
             success: true,
             message: "Product updated successfully",
@@ -229,6 +238,15 @@ const deactivateProduct = async (req, res) => {
         product.isActive = false;
 
         const updatedProduct = await product.save();
+
+        systemEvents.emit('SEND_ALERT', {
+            target: { roles: ['Admin', 'Manager'] }, 
+            category: 'INVENTORY',
+            type: 'WARNING',
+            title: 'Product Deactivated',
+            message: `Product "${updatedProduct.name}" has been deactivated.`,
+            channels: ['in-app', 'email']
+        });
 
         res.status(200).json({
             success: true,
@@ -261,7 +279,7 @@ const deleteProduct = async (req, res) => {
 
         // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'WARNING',
             title: 'Product Deleted',
@@ -436,6 +454,15 @@ const reactivateProduct = async (req, res) => {
         product.isActive = true;
 
         const updatedProduct = await product.save();
+
+        systemEvents.emit('SEND_ALERT', {
+            target: { roles: ['Admin', 'Manager'] }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'Product Reactivated',
+            message: `Product "${updatedProduct.name}" has been reactivated.`,
+            channels: ['in-app', 'email']
+        });
 
         res.status(200).json({
             success: true,
