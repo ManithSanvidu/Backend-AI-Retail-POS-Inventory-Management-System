@@ -1,6 +1,7 @@
 const path = require('path');
 const dns = require('dns');
 
+// Trigger nodemon restart
 require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
 });
