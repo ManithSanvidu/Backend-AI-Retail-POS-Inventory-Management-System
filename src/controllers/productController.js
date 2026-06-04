@@ -72,7 +72,7 @@ const addProduct = async (req, res) => {
             type: 'INFO',
             title: 'New Product Added',
             message: `${name} has been added to the product catalog.`,
-            channels: ['in-app']
+            channels: ['in-app', 'email']
         });
 
         res.status(201).json({
