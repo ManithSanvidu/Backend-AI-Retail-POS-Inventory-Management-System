@@ -4,7 +4,7 @@ const { isMongoConnected } = require("../middleware/requireMongoConnection");
 // You will likely need these models too (adjust names if different)
 const Inventory = require("../models/Inventory.js");
 const Sale = require("../models/Sale.js");
-const Employee = require("../models/Employee.js");
+const Employee = require("../models/User.js");
 const systemEvents = require("../events/eventBus.js");
 
 // ===============================
@@ -181,8 +181,8 @@ const getBranchEmployees = async (req, res) => {
   try {
     const employees = await Employee.find({
       branch: req.params.id,
+      role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
     });
-
     res.status(200).json(employees);
   } catch (error) {
     res.status(500).json({
@@ -213,6 +213,7 @@ const getBranchPerformance = async (req, res) => {
 
     const employeeCount = await Employee.countDocuments({
       branch: branchId,
+      role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
     });
 
     res.status(200).json({
