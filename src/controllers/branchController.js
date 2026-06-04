@@ -4,6 +4,7 @@ const Branch = require("../models/Branch.js");
 const Inventory = require("../models/Inventory.js");
 const Sale = require("../models/Sale.js");
 const Employee = require("../models/Employee.js");
+const systemEvents = require("../events/eventBus.js");
 
 // ===============================
 // CREATE BRANCH
@@ -45,8 +46,7 @@ const getBranchById = async (req, res) => {
   try {
     const branch = await Branch.findById(req.params.id)
       .populate("manager")
-      .populate("employees");
-
+      
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
@@ -73,6 +73,16 @@ const updateBranch = async (req, res) => {
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'INFO',
+      title: 'Branch Details Updated',
+      message: `The details for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
 
     res.status(200).json({
       message: "Branch updated successfully",
@@ -160,6 +170,23 @@ const getBranchSales = async (req, res) => {
 };
 
 // ===============================
+// BRANCH EMPLOYEES
+// ===============================
+const getBranchEmployees = async (req, res) => {
+  try {
+    const employees = await Employee.find({
+      branch: req.params.id,
+    });
+
+    res.status(200).json(employees);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+// ===============================
 // BRANCH PERFORMANCE METRICS
 // ===============================
 const getBranchPerformance = async (req, res) => {
@@ -212,6 +239,16 @@ const updateBranchSettings = async (req, res) => {
       return res.status(404).json({ message: "Branch not found" });
     }
 
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'WARNING',
+      title: 'Branch Settings Changed',
+      message: `The configuration settings for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
+
     res.status(200).json({
       message: "Branch settings updated",
       branch,
@@ -235,6 +272,7 @@ module.exports = {
   searchBranches,
   getBranchInventory,
   getBranchSales,
+  getBranchEmployees,
   getBranchPerformance,
   updateBranchSettings,
 };

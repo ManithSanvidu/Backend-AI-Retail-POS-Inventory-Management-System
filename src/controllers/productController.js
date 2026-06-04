@@ -1,5 +1,6 @@
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
+const systemEvents = require("../events/eventBus.js");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -62,6 +63,16 @@ const addProduct = async (req, res) => {
             reorderLevel,
             unit,
             isActive
+        });
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'New Product Added',
+            message: `${name} has been added to the product catalog.`,
+            channels: ['in-app']
         });
 
         res.status(201).json({
@@ -158,6 +169,8 @@ const updateProduct = async (req, res) => {
 
         product.name = req.body.name || product.name;
         product.barcode = req.body.barcode || product.barcode;
+        product.category = req.body.category || product.category;
+        product.supplier = req.body.supplier || product.supplier;
         product.brand = req.body.brand || product.brand;
         product.description = req.body.description || product.description;
         product.price = req.body.price || product.price;
@@ -228,6 +241,16 @@ const deleteProduct = async (req, res) => {
 
         await Product.findByIdAndDelete(req.params.id);
 
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, 
+            category: 'INVENTORY',
+            type: 'WARNING',
+            title: 'Product Deleted',
+            message: `Product "${product.name}" has been permanently deleted from the catalog.`,
+            channels: ['in-app', 'email']
+        });
+
         res.status(200).json({
             success: true,
             message: "Product deleted successfully"
@@ -274,7 +297,7 @@ const getProductByBarcode = async (req, res) => {
 // Search and Filter Products
 const searchProducts = async (req, res) => {
     try {
-        const { keyword, brand, category, minPrice, maxPrice } = req.query;
+        const { keyword, brand, category, supplier, minPrice, maxPrice } = req.query;
 
         let query = {
             isActive: true
@@ -294,6 +317,10 @@ const searchProducts = async (req, res) => {
 
         if (category) {
             query.category = category;
+        }
+
+        if (supplier) {
+            query.supplier = supplier;
         }
 
         if (minPrice || maxPrice) {
