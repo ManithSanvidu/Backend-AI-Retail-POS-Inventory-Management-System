@@ -1,6 +1,7 @@
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
 const systemEvents = require("../events/eventBus.js");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -96,6 +97,10 @@ const addProduct = async (req, res) => {
 // Get All Products
 const getAllProducts = async (req, res) => {
     try {
+        if (!isMongoConnected()) {
+            return res.status(200).json({ success: true, count: 0, products: [] });
+        }
+
         const products = await Product.find()
             .populate("category")
             .populate("supplier")
