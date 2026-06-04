@@ -17,6 +17,7 @@ const connectDB = require('./config/db');
 const sockethandler = require('./sockets/sockethandler');
 const setupNotificationSockets = require('./sockets/notificationSockets');
 const { initInventoryAlertJob } = require('./jobs/inventoryAlertJob');
+const { initScheduler } = require('./services/reportSchedulerService');
 
 const PORT = process.env.PORT || 5000;
 
@@ -67,6 +68,8 @@ const startBackgroundServices = async (dbConnection) => {
 
     await seedEmployees();
     initInventoryAlertJob();
+    await initScheduler();
+    console.log('✅ Report scheduler initialized');
 };
 
 server.listen(PORT, async () => {

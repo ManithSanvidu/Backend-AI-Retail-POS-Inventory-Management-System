@@ -4,6 +4,26 @@ const Sale = require('../models/Sale');
 const Inventory = require('../models/Inventory');
 const Branch = require('../models/Branch');
 const Report = require('../models/Report');
+const ScheduledReport = require('../models/ScheduledReport');
+const { scheduleOne, unscheduleOne } = require('../services/reportSchedulerService');
+
+// ─── Internal helper: log a history entry to the Report collection ───────────
+async function logHistory({ title, action, type, format, filters, userId }) {
+    try {
+        await Report.create({
+            title,
+            action,
+            type: type || 'Sales',
+            format: format || 'View',
+            filters: filters || {},
+            generatedBy: userId || null,
+            generatedAt: new Date(),
+        });
+    } catch (e) {
+        // Non-fatal — never block the export response for a log failure
+        console.warn('[ReportController] History log failed:', e.message);
+    }
+}
 
 // Helper: check if MongoDB is connected
 const isDbConnected = () => mongoose.connection.readyState === 1;
@@ -388,20 +408,105 @@ exports.getReportHistory = async (req, res, next) => {
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/reports/scheduled
-// Returns scheduled report configurations.
-// TODO: Create a ScheduledReport model when scheduling is implemented.
-// For now, returns sample data.
+// Returns all ScheduledReport documents from MongoDB.
+// Falls back to sample data if DB is down or collection empty.
 // ─────────────────────────────────────────────────────────────
 exports.getScheduledReports = async (req, res, next) => {
     try {
-        // TODO: Query ScheduledReport model once created
+        if (!isDbConnected()) {
+            return res.status(200).json({ success: true, source: 'sample', data: SAMPLE_SCHEDULED });
+        }
+
+        const schedules = await ScheduledReport.find().sort({ createdAt: -1 });
+
+        if (schedules.length === 0) {
+            return res.status(200).json({ success: true, source: 'sample', data: SAMPLE_SCHEDULED });
+        }
+
         return res.status(200).json({
             success: true,
-            source: 'sample',
-            count: SAMPLE_SCHEDULED.length,
-            data: SAMPLE_SCHEDULED,
-            _note: 'ScheduledReport model and cron integration pending',
+            source: 'database',
+            count: schedules.length,
+            data: schedules,
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/reports/scheduled
+// Create a new ScheduledReport and register its cron task.
+// ─────────────────────────────────────────────────────────────
+exports.createScheduledReport = async (req, res, next) => {
+    try {
+        const { title, type, frequency, cronExpression, active } = req.body;
+        if (!title || !frequency) {
+            return res.status(400).json({ success: false, error: 'title and frequency are required.' });
+        }
+
+        const doc = await ScheduledReport.create({
+            title,
+            type: type || 'Sales',
+            frequency,
+            cronExpression: cronExpression || ScheduledReport.FREQUENCY_CRON_MAP[frequency] || '0 8 * * *',
+            active: active !== undefined ? active : true,
+            createdBy: req.user?._id || null,
+        });
+
+        // Register the cron task immediately
+        scheduleOne(doc);
+
+        // Log to history
+        await logHistory({
+            title: `${doc.title} schedule created`,
+            action: `Scheduled report "${doc.title}" set up — ${doc.frequency}`,
+            type: doc.type,
+            format: 'Scheduled',
+            userId: req.user?._id,
+        });
+
+        return res.status(201).json({ success: true, data: doc });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// PATCH /api/reports/scheduled/:id
+// Toggle active/inactive or update fields. Re-registers cron task.
+// ─────────────────────────────────────────────────────────────
+exports.updateScheduledReport = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        const doc = await ScheduledReport.findByIdAndUpdate(id, updates, { new: true });
+        if (!doc) return res.status(404).json({ success: false, error: 'Schedule not found.' });
+
+        // Re-register (will stop old task and start new one if active)
+        scheduleOne(doc);
+
+        return res.status(200).json({ success: true, data: doc });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// DELETE /api/reports/scheduled/:id
+// Remove a ScheduledReport and stop its cron task.
+// ─────────────────────────────────────────────────────────────
+exports.deleteScheduledReport = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const doc = await ScheduledReport.findByIdAndDelete(id);
+        if (!doc) return res.status(404).json({ success: false, error: 'Schedule not found.' });
+
+        // Stop the cron task
+        unscheduleOne(id);
+
+        return res.status(200).json({ success: true, message: `Schedule "${doc.title}" deleted.` });
     } catch (error) {
         next(error);
     }
@@ -562,6 +667,16 @@ exports.exportPDF = async (req, res, next) => {
         });
 
         doc.end();
+
+        // Log export to history (non-blocking — runs after stream starts)
+        logHistory({
+            title: `${reportType || 'Sales'} Report exported as PDF`,
+            action: `${reportType || 'Sales'} Report exported as PDF`,
+            type: reportType || 'Sales',
+            format: 'PDF',
+            filters: { branch, status, fromDate, toDate, invoiceNumber },
+            userId: req.user?._id,
+        });
     } catch (error) {
         next(error);
     }
@@ -673,7 +788,17 @@ exports.exportExcel = async (req, res, next) => {
 
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="report_${reportType || 'Sales'}.csv"`);
-        
+
+        // Log export to history
+        logHistory({
+            title: `${reportType || 'Sales'} Report exported as Excel`,
+            action: `${reportType || 'Sales'} Report exported as Excel/CSV`,
+            type: reportType || 'Sales',
+            format: 'Excel',
+            filters: { branch, status, fromDate, toDate, invoiceNumber },
+            userId: req.user?._id,
+        });
+
         return res.status(200).send(csvContent);
     } catch (error) {
         next(error);
