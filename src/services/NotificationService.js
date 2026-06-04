@@ -54,9 +54,9 @@ const processAlert = async (data) => {
           link
         });
 
-        // Emit to WebSocket room (user's ID)
+        // Emit to WebSocket room (notifications_userId)
         if (global.io) {
-          global.io.to(userId.toString()).emit('new-notification', newNotif);
+          global.io.to(`notifications_${userId.toString()}`).emit('new-notification', newNotif);
         }
       }
 

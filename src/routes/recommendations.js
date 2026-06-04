@@ -12,13 +12,20 @@ const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5001';
 const dataPath = path.join(__dirname, '../data/recommendations.json');
 let fallbackData = {};
 
-try {
-    const rawData = fs.readFileSync(dataPath, 'utf8');
-    fallbackData = JSON.parse(rawData);
-    console.log("✅ Fallback recommendation data loaded successfully");
-} catch (error) {
-    console.error("❌ Failed to load recommendations.json:", error.message);
-}
+const loadRecommendations = () => {
+    try {
+        const rawData = fs.readFileSync(dataPath, 'utf8');
+        fallbackData = JSON.parse(rawData);
+        console.log("✅ Fallback recommendation data loaded successfully");
+        return true;
+    } catch (error) {
+        console.error("❌ Failed to load recommendations.json:", error.message);
+        return false;
+    }
+};
+
+// Initial load on startup
+loadRecommendations();
 
 // Helper to format success response
 const formatResponse = (data, source) => ({
@@ -217,9 +224,9 @@ router.post('/refresh', (req, res) => {
                 success: true,
                 message: "Recommendation engine retrained and reloaded successfully",
                 stats: {
-                    salesRecs: recommendationsData.salesRecommendations?.length || 0,
-                    inventoryRecs: recommendationsData.inventoryRecommendations?.length || 0,
-                    crossSellPairs: recommendationsData.crossSellRecommendations?.length || 0
+                    salesRecs: fallbackData.salesRecommendations?.length || 0,
+                    inventoryRecs: fallbackData.inventoryRecommendations?.length || 0,
+                    crossSellPairs: fallbackData.crossSellRecommendations?.length || 0
                 }
             });
         } else {
