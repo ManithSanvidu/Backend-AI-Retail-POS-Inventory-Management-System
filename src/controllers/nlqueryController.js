@@ -44,6 +44,9 @@ exports.askQuestion = async (req, res) => {
       intent: intentData.intent
     });
   } catch (error) {
+    if (error.isRateLimit) {
+      return res.status(503).json({ success: false, error: error.message, retryAfter: 15 });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 };
