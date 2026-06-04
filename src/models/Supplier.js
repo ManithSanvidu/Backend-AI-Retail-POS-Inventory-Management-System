@@ -122,11 +122,6 @@ const supplierSchema = new mongoose.Schema(
       }
     },
 
-    taxId: {
-      type: String,
-      required: [true, 'Tax ID is required']
-    },
-
     status: {
       type: String,
       required: [true, 'Status is required'],

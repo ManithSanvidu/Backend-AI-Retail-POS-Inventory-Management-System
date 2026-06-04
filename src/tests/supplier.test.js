@@ -22,7 +22,6 @@ test('Supplier Schema validation succeeds with valid details', () => {
     phone: '+94771234567',
     address: '123 Main Street, Colombo',
     category: 'Grains & Rice',
-    taxId: 'TIN-12345678',
     status: 'Active',
     transactions: [
       {
@@ -58,7 +57,6 @@ test('Supplier Schema validation fails when required fields are missing', () => 
   assert.ok(err.errors.phone);
   assert.ok(err.errors.address);
   assert.ok(err.errors.category);
-  assert.ok(err.errors.taxId);
 });
 
 test('Supplier Schema validation fails with invalid email format', () => {
@@ -68,8 +66,7 @@ test('Supplier Schema validation fails with invalid email format', () => {
     email: 'invalid-email-format',
     phone: '+94771234567',
     address: '123 Main Street, Colombo',
-    category: 'Grains & Rice',
-    taxId: 'TIN-12345678'
+    category: 'Grains & Rice'
   });
 
   const err = invalidEmailSupplier.validateSync();
@@ -85,8 +82,7 @@ test('Supplier Schema validation fails with invalid category enum value', () => 
     email: 'john@harvest.com',
     phone: '+94771234567',
     address: '123 Main Street, Colombo',
-    category: 'Fast Food', // Not in enum
-    taxId: 'TIN-12345678'
+    category: 'Fast Food' // Not in enum
   });
 
   const err = invalidCategorySupplier.validateSync();
@@ -103,7 +99,6 @@ test('Supplier Schema validation fails with invalid status enum value', () => {
     phone: '+94771234567',
     address: '123 Main Street, Colombo',
     category: 'Grains & Rice',
-    taxId: 'TIN-12345678',
     status: 'Suspended' // Not in enum
   });
 
@@ -142,8 +137,7 @@ test('POST /api/suppliers returns 503 status before MongoDB connects', async () 
         email: 'john@harvest.com',
         phone: '+94771234567',
         address: '123 Main Street, Colombo',
-        category: 'Grains & Rice',
-        taxId: 'TIN-12345678'
+        category: 'Grains & Rice'
       })
     });
 
@@ -215,7 +209,6 @@ test('Supplier Schema validation succeeds with contract details', () => {
     phone: '+94771234568',
     address: '456 Main Street, Colombo',
     category: 'Grains & Rice',
-    taxId: 'TIN-87654321',
     status: 'Active',
     contract: {
       startDate: new Date('2026-01-01'),
@@ -241,7 +234,6 @@ test('Supplier Schema validation fails with invalid contract status enum value',
     phone: '+94771234567',
     address: '123 Main Street, Colombo',
     category: 'Grains & Rice',
-    taxId: 'TIN-12345678',
     contract: {
       status: 'InvalidStatus'
     }
