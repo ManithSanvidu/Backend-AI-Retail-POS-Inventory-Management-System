@@ -1,4 +1,5 @@
 const Branch = require("../models/Branch.js");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // You will likely need these models too (adjust names if different)
 const Inventory = require("../models/Inventory.js");
@@ -29,6 +30,10 @@ const createBranch = async (req, res) => {
 // ===============================
 const getAllBranches = async (req, res) => {
   try {
+    if (!isMongoConnected()) {
+      return res.status(200).json([]);
+    }
+
     const branches = await Branch.find().populate("manager");
 
     res.status(200).json(branches);

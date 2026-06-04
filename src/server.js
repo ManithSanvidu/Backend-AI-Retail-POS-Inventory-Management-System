@@ -21,7 +21,7 @@ const { initInventoryAlertJob } = require('./jobs/inventoryAlertJob');
 require('./services/NotificationService'); // Initialize Notification Event Listeners
 const { initScheduler } = require('./services/reportSchedulerService');
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 const server = http.createServer(app);
 

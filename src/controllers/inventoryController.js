@@ -144,14 +144,13 @@ const updateStock = async (req, res, next) => {
                     message: `Product stock level has fallen below the reorder point.`
                 });
 
-                // ALSO trigger a global system alert so Managers get an Email/SMS
                 systemEvents.emit('SEND_ALERT', {
-                    target: { branchId: result.branchId, role: 'Manager' }, 
+                    target: { branchId: result.branchId, role: 'Manager' },
                     category: 'INVENTORY',
                     type: 'WARNING',
                     title: 'Low Stock Alert',
                     message: `Stock level has fallen below the reorder point. Current quantity: ${result.newQuantity}.`,
-                    channels: ['in-app', 'email', 'sms']
+                    channels: ['in-app', 'email', 'sms'],
                 });
             }
         }
