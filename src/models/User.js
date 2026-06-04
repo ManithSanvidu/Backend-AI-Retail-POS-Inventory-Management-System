@@ -22,12 +22,12 @@ const userSchema = new mongoose.Schema(
     phone: String,
 
     role: {
-      type: String,
-      enum: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CASHIER', 'EMPLOYEE',
-             'admin',       'manager',           'cashier'],
-      default:   'CASHIER',
-      uppercase: true,   
-    },
+        type: String,
+        enum: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CASHIER', 'EMPLOYEE',
+                'admin', 'manager', 'cashier', 'user'],  // ✅ 'user' add
+        default: 'user',
+        uppercase: false,
+        },
 
     branch: {
       type: mongoose.Schema.Types.ObjectId,
