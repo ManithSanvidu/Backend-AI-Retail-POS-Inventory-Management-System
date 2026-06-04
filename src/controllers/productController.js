@@ -1,5 +1,6 @@
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
+const systemEvents = require("../events/eventBus.js");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -62,6 +63,16 @@ const addProduct = async (req, res) => {
             reorderLevel,
             unit,
             isActive
+        });
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'New Product Added',
+            message: `${name} has been added to the product catalog.`,
+            channels: ['in-app', 'email']
         });
 
         res.status(201).json({
@@ -170,6 +181,15 @@ const updateProduct = async (req, res) => {
 
         const updatedProduct = await product.save();
 
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'admin' }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'Product Updated',
+            message: `Product "${updatedProduct.name}" details have been updated.`,
+            channels: ['in-app']
+        });
+
         res.status(200).json({
             success: true,
             message: "Product updated successfully",
@@ -201,6 +221,15 @@ const deactivateProduct = async (req, res) => {
 
         const updatedProduct = await product.save();
 
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'admin' }, 
+            category: 'INVENTORY',
+            type: 'WARNING',
+            title: 'Product Deactivated',
+            message: `Product "${updatedProduct.name}" has been deactivated.`,
+            channels: ['in-app']
+        });
+
         res.status(200).json({
             success: true,
             message: "Product deactivated successfully",
@@ -229,6 +258,16 @@ const deleteProduct = async (req, res) => {
         }
 
         await Product.findByIdAndDelete(req.params.id);
+
+        // Trigger a notification
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'Admin' }, 
+            category: 'INVENTORY',
+            type: 'WARNING',
+            title: 'Product Deleted',
+            message: `Product "${product.name}" has been permanently deleted from the catalog.`,
+            channels: ['in-app', 'email']
+        });
 
         res.status(200).json({
             success: true,
@@ -276,7 +315,7 @@ const getProductByBarcode = async (req, res) => {
 // Search and Filter Products
 const searchProducts = async (req, res) => {
     try {
-        const { keyword, brand, category, minPrice, maxPrice } = req.query;
+        const { keyword, brand, category, supplier, minPrice, maxPrice } = req.query;
 
         let query = {
             isActive: true
@@ -296,6 +335,10 @@ const searchProducts = async (req, res) => {
 
         if (category) {
             query.category = category;
+        }
+
+        if (supplier) {
+            query.supplier = supplier;
         }
 
         if (minPrice || maxPrice) {
@@ -393,6 +436,15 @@ const reactivateProduct = async (req, res) => {
         product.isActive = true;
 
         const updatedProduct = await product.save();
+
+        systemEvents.emit('SEND_ALERT', {
+            target: { role: 'admin' }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'Product Reactivated',
+            message: `Product "${updatedProduct.name}" has been reactivated.`,
+            channels: ['in-app']
+        });
 
         res.status(200).json({
             success: true,
