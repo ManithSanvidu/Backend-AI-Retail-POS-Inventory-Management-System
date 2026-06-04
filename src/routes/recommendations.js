@@ -211,6 +211,16 @@ router.post('/refresh', (req, res) => {
 				channels: ['in-app'],
 			});
 
+			systemEvents.emit('SEND_ALERT', {
+				target: { role: 'Admin' },
+				category: 'SYSTEM',
+				type: 'INFO',
+				title: 'AI Recommendations Updated',
+				message:
+					'The AI Recommendation Engine has been retrained with new sales and inventory data.',
+				channels: ['in-app'],
+			});
+
 			res.json({
 				success: true,
 				message: 'Recommendation engine retrained and reloaded successfully',

@@ -1,8 +1,19 @@
 const Promotion = require('../models/Promotion');
 const systemEvents = require('../events/eventBus');
+const { isMongoConnected } = require('../middleware/requireMongoConnection');
+
+const dbUnavailable = (res) =>
+	res.status(503).json({
+		success: false,
+		message:
+			'MongoDB is not connected. Set MONGO_URI in .env and ensure Atlas/network access.',
+	});
 
 exports.getPromotions = async (req, res, next) => {
 	try {
+		if (!isMongoConnected()) {
+			return dbUnavailable(res);
+		}
 		const promotions = await Promotion.find();
 		res.json(promotions);
 	} catch (err) {
@@ -12,6 +23,9 @@ exports.getPromotions = async (req, res, next) => {
 
 exports.createPromotion = async (req, res, next) => {
 	try {
+		if (!isMongoConnected()) {
+			return dbUnavailable(res);
+		}
 		const promotion = new Promotion(req.body);
 		await promotion.save();
 

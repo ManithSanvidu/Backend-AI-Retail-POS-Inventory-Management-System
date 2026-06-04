@@ -5,6 +5,20 @@ const InventoryMovement = require("../models/InventoryMovement");
 const Branch = require("../models/Branch");
 const Product = require("../models/Product");
 const AuditLog = require("../models/Auditlog");
+const {
+	isAdminRole,
+	isManagerRole,
+	getCreateTransferDenial,
+	getManagerPendingTransferDenial,
+	getDispatchTransferDenial,
+	getConfirmReceiptDenial,
+	getTransferActions,
+	getPermissionsForUser,
+	buildTransferScopeFilter,
+	buildMovementScopeFilter,
+	getTransferViewDenial,
+	getUserBranchIds,
+} = require("../utils/stockTransferPermissions");
 
 const parsePagination = (query) => {
     const page = Math.max(Number(query.page) || 1, 1);
@@ -12,10 +26,28 @@ const parsePagination = (query) => {
     return { page, limit, skip: (page - 1) * limit };
 };
 
+const ACTIVE_TRANSFER_STATUSES = ["PENDING", "APPROVED", "IN_TRANSIT"];
+
 const buildTransferFilters = (query) => {
     const filters = {};
 
-    if (query.status) {
+    const activeOnly =
+        query.active === "true" ||
+        query.active === "1" ||
+        query.activeOnly === "true" ||
+        query.activeOnly === "1";
+
+    if (activeOnly) {
+        filters.status = { $in: ACTIVE_TRANSFER_STATUSES };
+    } else if (query.statusIn) {
+        const statuses = String(query.statusIn)
+            .split(",")
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean);
+        if (statuses.length) {
+            filters.status = { $in: statuses };
+        }
+    } else if (query.status) {
         filters.status = query.status;
     }
 
@@ -174,46 +206,55 @@ const adjustInventoryWithLog = async ({
 
 const getRequestBody = (req) => req.body || {};
 
-const isAdminRole = (role) => ["SUPER_ADMIN", "ADMIN"].includes(role);
-
-const assertManagerOutboundRequest = (req, fromBranch) => {
-	if (isAdminRole(req.user.role)) {
-		return null;
-	}
-
-	if (req.user.role !== "MANAGER") {
-		return "Access denied for this role.";
-	}
-
-	if (!req.user.branch) {
-		return "Manager must be assigned to a branch to create transfer requests.";
-	}
-
-	if (String(fromBranch) !== String(req.user.branch)) {
-		return "Managers can only create transfer requests from their own branch.";
-	}
-
-	return null;
+const deductSourceBranchStock = async (transfer, performedBy, session) => {
+    for (const item of transfer.items) {
+        await adjustInventoryWithLog({
+            transferId: transfer._id,
+            branch: transfer.fromBranch,
+            product: item.product,
+            quantityChange: -Number(item.quantity),
+            movementType: "OUT",
+            performedBy,
+            note: "Stock deducted from source branch on transfer approval",
+            session
+        });
+    }
 };
 
-const assertInboundReceiptAccess = (req, transfer) => {
-	if (isAdminRole(req.user.role)) {
-		return null;
-	}
+const restoreSourceBranchStock = async (transfer, performedBy, session) => {
+    for (const item of transfer.items) {
+        await adjustInventoryWithLog({
+            transferId: transfer._id,
+            branch: transfer.fromBranch,
+            product: item.product,
+            quantityChange: Number(item.quantity),
+            movementType: "RESTORE",
+            performedBy,
+            note: "Stock restored after transfer cancellation",
+            session,
+            upsert: true
+        });
+    }
+};
 
-	if (req.user.role !== "MANAGER") {
-		return "Access denied for this role.";
-	}
+const resolveAvailabilityBranchId = (req) => {
+    const perms = getPermissionsForUser(req.user);
+    const requested = req.query.branchId;
 
-	if (!req.user.branch) {
-		return "Manager must be assigned to a branch to confirm receipt.";
-	}
+    if (perms.viewScope === "all") {
+        return requested || null;
+    }
 
-	if (String(transfer.toBranch) !== String(req.user.branch)) {
-		return "Managers can only confirm receipt for inbound transfers to their branch.";
-	}
+    const userBranchIds = getUserBranchIds(req.user);
+    if (!userBranchIds.length) {
+        return null;
+    }
 
-	return null;
+    if (requested && userBranchIds.some((id) => String(id) === String(requested))) {
+        return requested;
+    }
+
+    return userBranchIds[0];
 };
 
 const createTransfer = async (req, res) => {
@@ -240,7 +281,7 @@ const createTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: "fromBranch and toBranch must be different." });
         }
 
-        const branchAccessError = assertManagerOutboundRequest(req, fromBranch);
+        const branchAccessError = getCreateTransferDenial(req.user);
         if (branchAccessError) {
             return res.status(403).json({ success: false, message: branchAccessError });
         }
@@ -269,6 +310,7 @@ const createTransfer = async (req, res) => {
             toBranch,
             items,
             notes,
+            createdBy: req.user._id,
             activityLogs: [
                 {
                     status: "PENDING",
@@ -301,6 +343,11 @@ const updateTransfer = async (req, res) => {
 
         if (transfer.status !== "PENDING") {
             return res.status(400).json({ success: false, message: "Only PENDING transfers can be updated." });
+        }
+
+        const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
+        if (managerAccessError) {
+            return res.status(403).json({ success: false, message: managerAccessError });
         }
 
         const { fromBranch, toBranch, items, notes } = getRequestBody(req);
@@ -361,6 +408,11 @@ const deleteTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: "Only PENDING transfers can be deleted." });
         }
 
+        const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
+        if (managerAccessError) {
+            return res.status(403).json({ success: false, message: managerAccessError });
+        }
+
         await StockTransfer.deleteOne({ _id: transfer._id });
         await createAuditLog(req, "DELETE_TRANSFER", { transferId: transfer._id });
 
@@ -370,6 +422,7 @@ const deleteTransfer = async (req, res) => {
     }
 };
 
+/** Legacy/manual dispatch for transfers stuck in APPROVED */
 const dispatchTransfer = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -382,9 +435,10 @@ const dispatchTransfer = async (req, res) => {
             return res.status(404).json({ success: false, message: "Transfer not found." });
         }
 
-        if (transfer.status !== "PENDING") {
+        const dispatchDenial = getDispatchTransferDenial(req.user, transfer);
+        if (dispatchDenial) {
             await session.abortTransaction();
-            return res.status(400).json({ success: false, message: "Only PENDING transfers can be dispatched." });
+            return res.status(403).json({ success: false, message: dispatchDenial });
         }
 
         const availability = await checkStockAvailability(transfer.fromBranch, transfer.items, session);
@@ -393,18 +447,7 @@ const dispatchTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: availability.message });
         }
 
-        for (const item of transfer.items) {
-            await adjustInventoryWithLog({
-                transferId: transfer._id,
-                branch: transfer.fromBranch,
-                product: item.product,
-                quantityChange: -Number(item.quantity),
-                movementType: "OUT",
-                performedBy: req.user._id,
-                note: "Stock dispatched from source branch",
-                session
-            });
-        }
+        await deductSourceBranchStock(transfer, req.user._id, session);
 
         transfer.status = "IN_TRANSIT";
         transfer.dispatchedAt = new Date();
@@ -441,7 +484,7 @@ const completeTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: "Only IN_TRANSIT transfers can be completed." });
         }
 
-        const receiptAccessError = assertInboundReceiptAccess(req, transfer);
+        const receiptAccessError = getConfirmReceiptDenial(req.user, transfer);
         if (receiptAccessError) {
             await session.abortTransaction();
             return res.status(403).json({ success: false, message: receiptAccessError });
@@ -479,6 +522,48 @@ const completeTransfer = async (req, res) => {
     }
 };
 
+/** Admin approves pending request → APPROVED (stock moves on manager dispatch) */
+const approveTransfer = async (req, res) => {
+    try {
+        const transfer = await StockTransfer.findById(req.params.id);
+        const { note } = getRequestBody(req);
+
+        if (!transfer) {
+            return res.status(404).json({ success: false, message: "Transfer not found." });
+        }
+
+        if (transfer.status !== "PENDING") {
+            return res.status(400).json({
+                success: false,
+                message: "Only PENDING transfers can be approved."
+            });
+        }
+
+        const availability = await checkStockAvailability(transfer.fromBranch, transfer.items);
+        if (!availability.available) {
+            return res.status(400).json({ success: false, message: availability.message });
+        }
+
+        const now = new Date();
+        transfer.status = "APPROVED";
+        transfer.approvedAt = now;
+        pushActivityLog(
+            transfer,
+            "APPROVED",
+            note || "Transfer approved by admin",
+            req.user._id
+        );
+
+        await transfer.save();
+
+        await createAuditLog(req, "APPROVE_TRANSFER", { transferId: transfer._id });
+
+        return res.status(200).json({ success: true, data: transfer });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 const cancelTransfer = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -492,7 +577,7 @@ const cancelTransfer = async (req, res) => {
             return res.status(404).json({ success: false, message: "Transfer not found." });
         }
 
-        if (["COMPLETED", "CANCELLED"].includes(transfer.status)) {
+        if (["COMPLETED", "CANCELLED", "REJECTED"].includes(transfer.status)) {
             await session.abortTransaction();
             return res.status(400).json({
                 success: false,
@@ -500,20 +585,25 @@ const cancelTransfer = async (req, res) => {
             });
         }
 
-        if (transfer.status === "IN_TRANSIT") {
-            for (const item of transfer.items) {
-                await adjustInventoryWithLog({
-                    transferId: transfer._id,
-                    branch: transfer.fromBranch,
-                    product: item.product,
-                    quantityChange: Number(item.quantity),
-                    movementType: "RESTORE",
-                    performedBy: req.user._id,
-                    note: "Stock restored after transfer cancellation",
-                    session,
-                    upsert: true
-                });
+        if (isManagerRole(req.user.role)) {
+            const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
+            if (managerAccessError) {
+                await session.abortTransaction();
+                return res.status(403).json({ success: false, message: managerAccessError });
             }
+        } else if (!isAdminRole(req.user.role)) {
+            await session.abortTransaction();
+            return res.status(403).json({ success: false, message: "Access denied for this role." });
+        } else if (transfer.status !== "PENDING") {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: "Admins can only cancel transfers while they are pending review."
+            });
+        }
+
+        if (transfer.status === "IN_TRANSIT") {
+            await restoreSourceBranchStock(transfer, req.user._id, session);
         }
 
         transfer.status = "CANCELLED";
@@ -555,15 +645,15 @@ const rejectTransfer = async (req, res) => {
             });
         }
 
-        transfer.status = "CANCELLED";
-        transfer.cancelledAt = new Date();
-        transfer.cancelReason = reason || "Transfer rejected";
-        pushActivityLog(transfer, "CANCELLED", transfer.cancelReason, req.user._id);
+        transfer.status = "REJECTED";
+        transfer.rejectedAt = new Date();
+        transfer.rejectReason = reason || "Transfer rejected";
+        pushActivityLog(transfer, "REJECTED", transfer.rejectReason, req.user._id);
         await transfer.save();
 
         await createAuditLog(req, "REJECT_TRANSFER", {
             transferId: transfer._id,
-            reason: transfer.cancelReason
+            reason: transfer.rejectReason
         });
 
         return res.status(200).json({ success: true, data: transfer });
@@ -574,13 +664,17 @@ const rejectTransfer = async (req, res) => {
 
 const listTransfers = async (req, res) => {
     try {
-        const filters = buildTransferFilters(req.query);
+        const filters = {
+            ...buildTransferFilters(req.query),
+            ...buildTransferScopeFilter(req.user),
+        };
         const { page, limit, skip } = parsePagination(req.query);
 
         const [data, total] = await Promise.all([
             StockTransfer.find(filters)
                 .populate("fromBranch", "name code")
                 .populate("toBranch", "name code")
+                .populate("createdBy", "firstName lastName email role")
                 .populate("items.product", "name barcode")
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -588,9 +682,45 @@ const listTransfers = async (req, res) => {
             StockTransfer.countDocuments(filters)
         ]);
 
+        const permissions = getPermissionsForUser(req.user);
+
+        const statusCounts = await StockTransfer.aggregate([
+            { $match: buildTransferScopeFilter(req.user) },
+            { $group: { _id: "$status", count: { $sum: 1 } } }
+        ]);
+        const summary = {
+            pending: 0,
+            approved: 0,
+            inTransit: 0,
+            rejected: 0,
+            completed: 0,
+            cancelled: 0,
+            active: 0
+        };
+        for (const row of statusCounts) {
+            const key = String(row._id || "").toUpperCase();
+            const count = row.count ?? 0;
+            if (key === "PENDING") summary.pending = count;
+            else if (key === "APPROVED") summary.approved = count;
+            else if (key === "IN_TRANSIT") summary.inTransit = count;
+            else if (key === "REJECTED") summary.rejected = count;
+            else if (key === "COMPLETED") summary.completed = count;
+            else if (key === "CANCELLED") summary.cancelled = count;
+            if (ACTIVE_TRANSFER_STATUSES.includes(key)) {
+                summary.active += count;
+            }
+        }
+
+        const enriched = data.map((doc) => {
+            const plain = doc.toObject ? doc.toObject() : doc;
+            return { ...plain, actions: getTransferActions(plain, req.user) };
+        });
+
         return res.status(200).json({
             success: true,
-            data,
+            data: enriched,
+            permissions,
+            summary,
             pagination: {
                 page,
                 limit,
@@ -608,6 +738,7 @@ const getTransferById = async (req, res) => {
         const transfer = await StockTransfer.findById(req.params.id)
             .populate("fromBranch", "name code")
             .populate("toBranch", "name code")
+            .populate("createdBy", "firstName lastName email role")
             .populate("items.product", "name barcode")
             .populate("activityLogs.changedBy", "firstName lastName email");
 
@@ -615,7 +746,79 @@ const getTransferById = async (req, res) => {
             return res.status(404).json({ success: false, message: "Transfer not found." });
         }
 
-        return res.status(200).json({ success: true, data: transfer });
+        const viewDenial = getTransferViewDenial(req.user, transfer);
+        if (viewDenial) {
+            return res.status(403).json({ success: false, message: viewDenial });
+        }
+
+        const actions = getTransferActions(transfer, req.user);
+
+        return res.status(200).json({
+            success: true,
+            data: transfer,
+            permissions: getPermissionsForUser(req.user),
+            actions,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const getTransferPermissions = async (req, res) => {
+    try {
+        return res.status(200).json({
+            success: true,
+            permissions: getPermissionsForUser(req.user),
+            workflow: {
+                steps: ["PENDING", "APPROVED", "IN_TRANSIT", "COMPLETED"],
+                terminal: ["REJECTED", "CANCELLED"]
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const getBranchStockAvailability = async (req, res) => {
+    try {
+        const branchId = resolveAvailabilityBranchId(req);
+
+        if (!branchId || !mongoose.Types.ObjectId.isValid(branchId)) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid branchId is required for stock availability."
+            });
+        }
+
+        const branchExists = await Branch.exists({ _id: branchId });
+        if (!branchExists) {
+            return res.status(404).json({ success: false, message: "Branch not found." });
+        }
+
+        const inventory = await Inventory.find({ branch: branchId })
+            .populate("product", "name barcode category")
+            .populate("branch", "name code")
+            .sort({ "product.name": 1 });
+
+        const data = inventory.map((row) => ({
+            productId: row.product?._id,
+            name: row.product?.name,
+            barcode: row.product?.barcode,
+            sku: row.product?.sku || null,
+            branchId: row.branch?._id,
+            branchName: row.branch?.name,
+            quantity: row.quantity,
+            reservedStock: row.reservedStock,
+            availableQuantity: Math.max(Number(row.quantity) - Number(row.reservedStock || 0), 0),
+            lowStockAlert: row.lowStockAlert
+        }));
+
+        return res.status(200).json({
+            success: true,
+            branchId,
+            data,
+            count: data.length
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -623,7 +826,9 @@ const getTransferById = async (req, res) => {
 
 const listInventoryMovements = async (req, res) => {
     try {
-        const filters = {};
+        const filters = {
+            ...buildMovementScopeFilter(req.user)
+        };
 
         if (req.query.transferId) {
             filters.transfer = req.query.transferId;
@@ -666,9 +871,133 @@ const listInventoryMovements = async (req, res) => {
     }
 };
 
+const getTransferActivityLogs = async (req, res) => {
+    try {
+        const transferFilter = buildTransferScopeFilter(req.user);
+        const { page, limit, skip } = parsePagination(req.query);
+
+        const transfers = await StockTransfer.find(transferFilter)
+            .select("activityLogs fromBranch toBranch status")
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("activityLogs.changedBy", "firstName lastName email role");
+
+        const logs = transfers.flatMap((transfer) =>
+            (transfer.activityLogs || []).map((log) => ({
+                transferId: transfer._id,
+                status: transfer.status,
+                fromBranch: transfer.fromBranch,
+                toBranch: transfer.toBranch,
+                logStatus: log.status,
+                note: log.note,
+                changedBy: log.changedBy,
+                changedAt: log.changedAt
+            }))
+        );
+
+        logs.sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt));
+        const paged = logs.slice(skip, skip + limit);
+
+        return res.status(200).json({
+            success: true,
+            data: paged,
+            pagination: {
+                page,
+                limit,
+                total: logs.length,
+                totalPages: Math.ceil(logs.length / limit)
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const getBranchTransferReports = async (req, res) => {
+    try {
+        const match = {
+            ...buildTransferFilters(req.query),
+            ...buildTransferScopeFilter(req.user)
+        };
+
+        const reports = await StockTransfer.aggregate([
+            { $match: match },
+            {
+                $facet: {
+                    byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+                    byFromBranch: [
+                        {
+                            $group: {
+                                _id: "$fromBranch",
+                                total: { $sum: 1 },
+                                units: { $sum: { $sum: "$items.quantity" } }
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "branches",
+                                localField: "_id",
+                                foreignField: "_id",
+                                as: "branch"
+                            }
+                        },
+                        { $unwind: { path: "$branch", preserveNullAndEmptyArrays: true } },
+                        {
+                            $project: {
+                                branchId: "$_id",
+                                branchName: "$branch.name",
+                                branchCode: "$branch.code",
+                                totalTransfers: "$total",
+                                totalUnits: "$units"
+                            }
+                        }
+                    ],
+                    byToBranch: [
+                        {
+                            $group: {
+                                _id: "$toBranch",
+                                total: { $sum: 1 },
+                                units: { $sum: { $sum: "$items.quantity" } }
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "branches",
+                                localField: "_id",
+                                foreignField: "_id",
+                                as: "branch"
+                            }
+                        },
+                        { $unwind: { path: "$branch", preserveNullAndEmptyArrays: true } },
+                        {
+                            $project: {
+                                branchId: "$_id",
+                                branchName: "$branch.name",
+                                branchCode: "$branch.code",
+                                totalTransfers: "$total",
+                                totalUnits: "$units"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            data: reports[0] || { byStatus: [], byFromBranch: [], byToBranch: [] }
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 const getTransferAnalytics = async (req, res) => {
     try {
-        const filters = buildTransferFilters(req.query);
+        const filters = {
+            ...buildTransferFilters(req.query),
+            ...buildTransferScopeFilter(req.user)
+        };
         const pipeline = [{ $match: filters }];
 
         const [statusSummary, volumeSummary, topProducts, cancelledCount] = await Promise.all([
@@ -737,12 +1066,16 @@ module.exports = {
     updateTransfer,
     deleteTransfer,
     dispatchTransfer,
-    approveTransfer: dispatchTransfer,
+    approveTransfer,
     completeTransfer,
     cancelTransfer,
     rejectTransfer,
     listTransfers,
     getTransferById,
+    getTransferPermissions,
+    getBranchStockAvailability,
     listInventoryMovements,
+    getTransferActivityLogs,
+    getBranchTransferReports,
     getTransferAnalytics
 };

@@ -27,12 +27,20 @@ const stockTransferSchema = new mongoose.Schema(
         type: String,
         enum: [
             "PENDING",
+            "APPROVED",
+            "REJECTED",
             "IN_TRANSIT",
             "COMPLETED",
             "CANCELLED"
         ],
         default: "PENDING"
     },
+
+    approvedAt: Date,
+
+    rejectedAt: Date,
+
+    rejectReason: String,
 
     transferDate: {
         type: Date,
@@ -49,11 +57,16 @@ const stockTransferSchema = new mongoose.Schema(
 
     notes: String,
 
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    },
+
     activityLogs: [
         {
             status: {
                 type: String,
-                enum: ["PENDING", "IN_TRANSIT", "COMPLETED", "CANCELLED"]
+                enum: ["PENDING", "APPROVED", "REJECTED", "IN_TRANSIT", "COMPLETED", "CANCELLED"]
             },
             note: String,
             changedBy: {

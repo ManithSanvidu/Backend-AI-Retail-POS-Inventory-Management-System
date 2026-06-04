@@ -12,38 +12,54 @@ const {
     rejectTransfer,
     listTransfers,
     getTransferById,
+    getTransferPermissions,
+    getBranchStockAvailability,
     listInventoryMovements,
+    getTransferActivityLogs,
+    getBranchTransferReports,
     getTransferAnalytics
 } = require("../controllers/stockTransferController");
 
 const router = express.Router();
 
 const adminRoles = ["SUPER_ADMIN", "ADMIN"];
-const managerRoles = ["SUPER_ADMIN", "MANAGER"];
-const readRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER", "EMPLOYEE"];
+const managerOnly = ["MANAGER"];
+const viewRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"];
+const managerAndAdmin = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
+const reportViewRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"];
+const availabilityRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"];
 
 router.use(protect);
 
-// Read-only: tracking, stock history (cashier + all roles)
-router.get("/analytics/summary", authorizeRoles(...readRoles), getTransferAnalytics);
-router.get("/movements/history", authorizeRoles(...readRoles), listInventoryMovements);
-router.get("/", authorizeRoles(...readRoles), listTransfers);
-router.get("/:id", authorizeRoles(...readRoles), getTransferById);
+// Permissions & read APIs
+router.get("/permissions", authorizeRoles(...viewRoles), getTransferPermissions);
+router.get("/availability", authorizeRoles(...availabilityRoles), getBranchStockAvailability);
 
-// Manager: Transfer Request tab
-router.post("/", authorizeRoles(...managerRoles), createTransfer);
+// Admin + manager analytics & reports; admin-only audit-style logs
+router.get("/analytics/summary", authorizeRoles(...reportViewRoles), getTransferAnalytics);
+router.get("/reports/by-branch", authorizeRoles(...reportViewRoles), getBranchTransferReports);
+router.get("/logs", authorizeRoles(...adminRoles), getTransferActivityLogs);
 
-// Admin: Progress Tracking — Approve / Reject / Cancel
+// Transfer history (inventory movements) — admin, manager; cashier uses transfer list for status
+router.get("/movements/history", authorizeRoles(...managerAndAdmin), listInventoryMovements);
+
+router.get("/", authorizeRoles(...viewRoles), listTransfers);
+router.get("/:id", authorizeRoles(...viewRoles), getTransferById);
+
+// Manager: create / edit / cancel while PENDING
+router.post("/", authorizeRoles(...managerOnly), createTransfer);
+router.put("/:id", authorizeRoles(...managerOnly), updateTransfer);
+router.patch("/:id/cancel", authorizeRoles(...managerOnly, ...adminRoles), cancelTransfer);
+router.delete("/:id", authorizeRoles(...managerOnly), deleteTransfer);
+
+// Admin: approve → APPROVED, reject, cancel while PENDING
 router.patch("/:id/approve", authorizeRoles(...adminRoles), approveTransfer);
-router.patch("/:id/dispatch", authorizeRoles(...adminRoles), dispatchTransfer);
 router.patch("/:id/reject", authorizeRoles(...adminRoles), rejectTransfer);
-router.patch("/:id/cancel", authorizeRoles(...adminRoles), cancelTransfer);
 
-// Manager: Confirm Receipt on inbound transfers (destination branch only)
-router.patch("/:id/complete", authorizeRoles(...managerRoles), completeTransfer);
+// Manager: dispatch APPROVED → IN_TRANSIT (stock out)
+router.patch("/:id/dispatch", authorizeRoles(...managerOnly), dispatchTransfer);
 
-// Admin maintenance on pending requests
-router.put("/:id", authorizeRoles(...adminRoles), updateTransfer);
-router.delete("/:id", authorizeRoles(...adminRoles), deleteTransfer);
+// Destination branch manager confirms receipt
+router.patch("/:id/complete", authorizeRoles(...managerOnly), completeTransfer);
 
 module.exports = router;

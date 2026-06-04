@@ -66,12 +66,20 @@ const createSale = async (req, res) => {
 
     await sale.save();
 
-    for (const item of enrichedItems) {
-      await Inventory.findOneAndUpdate(
-        { product: item.product, branch: req.user.branch },
-        { $inc: { quantity: -item.quantity } }
-      );
-    }
+    // for (const item of enrichedItems) {
+    //   await Inventory.findOneAndUpdate(
+    //     { product: item.product, branch: req.user.branch },
+    //     { $inc: { quantity: -item.quantity } }
+    //   );
+    // }
+    if (req.user.branch) {
+  for (const item of enrichedItems) {
+    await Inventory.findOneAndUpdate(
+      { product: item.product, branch: req.user.branch },
+      { $inc: { quantity: -item.quantity } }
+    );
+  }
+}
 
     const populatedSale = await Sale.findById(sale._id)
       .populate("customer", "name phone email")
