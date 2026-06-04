@@ -23,6 +23,7 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const warehouseRoutes = require('./routes/warehouseRoutes');
 const customerRoutes = require("./routes/customerRoutes");
 const returnsRoutes = require("./routes/returnsRoutes");
+const reorderRoutes = require('./routes/reorderRoutes');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/reorders', reorderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/products', productRoutes);
