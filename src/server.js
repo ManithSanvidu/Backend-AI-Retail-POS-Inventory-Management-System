@@ -1,44 +1,27 @@
-const http = require('http');
-const { Server } = require('socket.io');
-const mongoose = require('mongoose');
-require('dotenv').config(); // This is all you need for dotenv
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
 
-// app.js eken app eka gannawa
-const app = require("./app");
+dotenv.config();
+
 const connectDB = require("./config/db");
-const setupNotificationSockets = require('./sockets/notificationSockets');
 
-// Note: I removed `const app = express()` and the cors/json middleware 
-// here because those should ideally be handled inside your `app.js` file.
+connectDB();
 
-// Create HTTP server (Socket.IO සඳහා Express app එක වෙනුවට HTTP server එකක් සෑදීම අනිවාර්ය වේ)
-const server = http.createServer(app);
+const app = express();
 
-// Setup Socket.IO
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || '*', 
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
+app.use(cors({
+  origin: ["http://localhost:5173", process.env.CLIENT_URL],
+  credentials: true,
+}));
+app.use(express.json());
 
-// Make io globally accessible
-global.io = io;
+// Routes
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/employees", require("./routes/employeeRoutes"));
+app.use("/api/warehouses", require("./routes/warehouseRoutes")); 
 
-// Setup Socket handlers
-setupNotificationSockets(io);
+app.get("/", (req, res) => res.send("POS API Running ✅"));
 
-// Define PORT (Add this so the server knows where to listen!)
 const PORT = process.env.PORT || 5000;
-
-// Connect to MongoDB and Start Server
-connectDB()
-  .then(() => {
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err);
-  });
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

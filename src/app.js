@@ -2,24 +2,39 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const branchRoutes = require("./routes/branchRoutes.js");
-// Awashya nam oyage anith routes (authRoutes, warehouseRoutes) methanata add karanna
+// Routes import kirima
+const warehouseRoutes = require("./routes/warehouseRoutes");
+const authRoutes = require("./routes/authRoutes");
+const employeeRoutes = require("./routes/employeeRoutes"); // 👈 Meka aluthin add kala
 
 const app = express();
 
+// CORS එක first!
+app.use(cors({
+  origin: ["http://localhost:5173", "http://localhost:3000"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 // Middleware
-app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use("/api/branches", branchRoutes);
+// Routes setup kirima
+app.use("/api/auth", authRoutes);
+app.use("/api/warehouses", warehouseRoutes);
+app.use("/api/employees", employeeRoutes); // 👈 Frontend ekata employees data denna meka one
 
-// Test Route
-app.get("/", (req, res) => {
-  res.json({
-    message: "AI Retail POS Backend Running",
-  });
+// Health check
+app.get("/", (req, res) => res.json({ message: "🏭 Retail POS API Running!" }));
+
+// 404 handler
+app.use((req, res) => res.status(404).json({ message: "Route not found" }));
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: "Internal Server Error" });
 });
 
-// App eka export karanawa server.js ekata ganna
 module.exports = app;
