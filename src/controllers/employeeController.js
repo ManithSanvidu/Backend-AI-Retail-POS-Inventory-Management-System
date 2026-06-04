@@ -6,6 +6,31 @@ const EmployeeAttendance = require("../models/EmployeeAttendance");
 const EmployeePerformance = require("../models/EmployeePerformance");
 const systemEvents = require("../events/eventBus");
 const cloudinary = require("../config/cloudinary");
+const fs = require("fs");
+const path = require("path");
+
+// Helper to save file locally on disk fallback
+const saveLocalFile = (req) => {
+    try {
+        const uploadsDir = path.join(__dirname, "../../uploads");
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        const originalName = req.file.originalname || "image.jpg";
+        const fileExtension = path.extname(originalName) || `.${req.file.mimetype.split("/")[1] || "jpg"}`;
+        const fileName = `emp_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+        const filePath = path.join(uploadsDir, fileName);
+        
+        fs.writeFileSync(filePath, req.file.buffer);
+        
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        return `${baseUrl}/uploads/${fileName}`;
+    } catch (err) {
+        console.error("Error saving local file fallback:", err.message);
+        return "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop";
+    }
+};
 
 // ==========================================
 // 👥 EMPLOYEE CRUD OPERATIONS
@@ -169,12 +194,12 @@ const addEmployee = async (req, res) => {
                     });
                     imageUrl = uploadedImage.secure_url;
                 } catch (uploadErr) {
-                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
-                    imageUrl = dataURI;
+                    console.error("Cloudinary upload failed, falling back to local file storage:", uploadErr.message);
+                    imageUrl = saveLocalFile(req);
                 }
             } else {
-                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
-                imageUrl = dataURI;
+                console.log("Cloudinary credentials not configured. Saving to local file storage fallback.");
+                imageUrl = saveLocalFile(req);
             }
         } else if (photo && photo.trim()) {
             imageUrl = photo;
@@ -378,12 +403,12 @@ const updateEmployee = async (req, res) => {
                     });
                     imageUrl = uploadedImage.secure_url;
                 } catch (uploadErr) {
-                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
-                    imageUrl = dataURI;
+                    console.error("Cloudinary upload failed, falling back to local file storage:", uploadErr.message);
+                    imageUrl = saveLocalFile(req);
                 }
             } else {
-                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
-                imageUrl = dataURI;
+                console.log("Cloudinary credentials not configured. Saving to local file storage fallback.");
+                imageUrl = saveLocalFile(req);
             }
         } else if (photo !== undefined) {
             imageUrl = photo;
@@ -460,7 +485,13 @@ const deleteEmployee = async (req, res) => {
             await User.findByIdAndDelete(employee.user);
         }
 
-        // Step 2: Delete Employee record
+        // Step 2: Cascade delete all associated logs (schedules, attendance, performance)
+        const empIdStr = employee._id.toString();
+        await EmployeeSchedule.deleteMany({ employeeId: empIdStr });
+        await EmployeeAttendance.deleteMany({ employeeId: empIdStr });
+        await EmployeePerformance.deleteMany({ employeeId: empIdStr });
+
+        // Step 3: Delete Employee record
         await employee.deleteOne();
 
         // Trigger a notification
@@ -683,12 +714,16 @@ const logPerformanceMetric = async (req, res) => {
         if (emp) {
             const allPerfs = await EmployeePerformance.find({ employeeId });
             const totalScore = allPerfs.reduce((acc, curr) => {
-                const currScore = (curr.punctuality + curr.salesAchievement + (curr.customerRating * 20) + curr.taskCompletion) / 4 / 20;
+                const punctuality = typeof curr.punctuality === "number" ? curr.punctuality : 100;
+                const salesAchievement = typeof curr.salesAchievement === "number" ? curr.salesAchievement : 100;
+                const customerRating = typeof curr.customerRating === "number" ? curr.customerRating : 4.0;
+                const taskCompletion = typeof curr.taskCompletion === "number" ? curr.taskCompletion : 100;
+                const currScore = (punctuality + salesAchievement + (customerRating * 20) + taskCompletion) / 4 / 20;
                 return acc + currScore;
             }, 0);
-            const avgScore = totalScore / allPerfs.length;
+            const avgScore = allPerfs.length > 0 ? (totalScore / allPerfs.length) : 4.0;
             
-            emp.performanceScore = parseFloat(avgScore.toFixed(2));
+            emp.performanceScore = isNaN(avgScore) ? 4.0 : parseFloat(avgScore.toFixed(2));
             await emp.save();
         }
 
