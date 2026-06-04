@@ -28,6 +28,9 @@ const warehouseRoutes = require('./routes/warehouseRoutes');
 const customerRoutes = require("./routes/customerRoutes");
 const returnsRoutes = require("./routes/returnsRoutes");
 
+// Import routes from Tharsiga — Reporting Module
+const reportRoutes = require('./routes/reportRoutes');
+
 const app = express();
 
 app.use(cors());
@@ -69,6 +72,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/returns", returnsRoutes);
+
+// Mount reports route
+app.use('/api/reports', reportRoutes);
 
 // 404 Handler
 app.use((req, res) => {
