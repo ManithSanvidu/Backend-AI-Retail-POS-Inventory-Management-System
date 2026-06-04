@@ -43,11 +43,20 @@ const addProduct = async (req, res) => {
             const base64Image = req.file.buffer.toString("base64");
             const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
 
-            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                folder: "retail_pos_products"
-            });
-
-            imageUrl = uploadedImage.secure_url;
+            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
+                try {
+                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                        folder: "retail_pos_products"
+                    });
+                    imageUrl = uploadedImage.secure_url;
+                } catch (uploadErr) {
+                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
+                    imageUrl = dataURI;
+                }
+            } else {
+                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
+                imageUrl = dataURI;
+            }
         }
 
         const product = await Product.create({
@@ -160,11 +169,20 @@ const updateProduct = async (req, res) => {
             const base64Image = req.file.buffer.toString("base64");
             const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
 
-            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                folder: "retail_pos_products"
-            });
-
-            imageUrl = uploadedImage.secure_url;
+            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
+                try {
+                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                        folder: "retail_pos_products"
+                    });
+                    imageUrl = uploadedImage.secure_url;
+                } catch (uploadErr) {
+                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
+                    imageUrl = dataURI;
+                }
+            } else {
+                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
+                imageUrl = dataURI;
+            }
         }
 
         product.name = req.body.name || product.name;

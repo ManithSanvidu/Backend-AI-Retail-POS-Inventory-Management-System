@@ -5,9 +5,9 @@ require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
 });
 
-if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder('ipv4first');
-}
+// if (dns.setDefaultResultOrder) {
+//     dns.setDefaultResultOrder('ipv4first');
+// }
 
 const http = require('http');
 const { Server } = require('socket.io');
