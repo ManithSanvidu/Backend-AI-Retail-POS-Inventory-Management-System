@@ -6,15 +6,23 @@ dotenv.config();
 
 const authRoutes = require('./routes/authRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
+const salesRoutes     = require('./routes/salesRoutes'); 
+
 const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const recommendationsRoutes = require('./routes/recommendations');
+const chatRoutes = require('./routes/chat');
+const nlqueryRoutes = require('./routes/nlquery');
+const decisionsRoutes = require('./routes/decisions');
 const userRoutes = require('./routes/userRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const warehouseRoutes = require('./routes/warehouseRoutes');
 const customerRoutes = require("./routes/customerRoutes");
+const returnsRoutes = require("./routes/returnsRoutes");
 
 const app = express();
 
@@ -26,6 +34,11 @@ app.get('/', (req, res) => {
     res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
 });
 
+// Mount AI Routes
+app.use('/api/chat', chatRoutes);
+app.use('/api/nlquery', nlqueryRoutes);
+app.use('/api/decisions', decisionsRoutes);
+
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
 });
@@ -36,6 +49,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/sales', salesRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
@@ -44,7 +58,10 @@ app.use('/api/branches', branchRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/warehouses', warehouseRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/returns", returnsRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
