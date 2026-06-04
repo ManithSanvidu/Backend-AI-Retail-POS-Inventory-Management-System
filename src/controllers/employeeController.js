@@ -6,6 +6,7 @@ const EmployeeAttendance = require("../models/EmployeeAttendance");
 const EmployeePerformance = require("../models/EmployeePerformance");
 const systemEvents = require("../events/eventBus");
 const cloudinary = require("../config/cloudinary");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 const fs = require("fs");
 const path = require("path");
 
@@ -40,6 +41,9 @@ const saveLocalFile = (req) => {
 // @route   GET /api/employees
 // @access  Public
 const getAllEmployees = async (req, res) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, employees: [] });
+    }
     try {
         const employees = await Employee.find();
         return res.status(200).json({
@@ -525,6 +529,9 @@ const deleteEmployee = async (req, res) => {
 // @route   GET /api/employees/schedules
 // @access  Public
 const getSchedules = async (req, res) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, schedules: [] });
+    }
     try {
         const schedules = await EmployeeSchedule.find();
         return res.status(200).json({
@@ -585,6 +592,9 @@ const saveSchedule = async (req, res) => {
 // @route   GET /api/employees/attendance
 // @access  Public
 const getAttendance = async (req, res) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, attendance: [] });
+    }
     try {
         const attendance = await EmployeeAttendance.find().sort({ createdAt: -1 });
         return res.status(200).json({
@@ -660,6 +670,9 @@ const logAttendance = async (req, res) => {
 // @route   GET /api/employees/performance
 // @access  Public
 const getPerformanceMetrics = async (req, res) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, performance: [] });
+    }
     try {
         const performance = await EmployeePerformance.find();
         return res.status(200).json({
