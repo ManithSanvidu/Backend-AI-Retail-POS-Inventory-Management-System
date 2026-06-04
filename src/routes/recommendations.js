@@ -210,9 +210,19 @@ router.post('/refresh', (req, res) => {
     try {
         const success = loadRecommendations();
         if (success) {
-            // Trigger a notification that the model has been refreshed
+            // Alert Managers
             systemEvents.emit('SEND_ALERT', {
                 target: { role: 'Manager' }, 
+                category: 'SYSTEM',
+                type: 'INFO',
+                title: 'AI Recommendations Updated',
+                message: 'The AI Recommendation Engine has been retrained with new sales and inventory data.',
+                channels: ['in-app']
+            });
+
+            // Alert Admins
+            systemEvents.emit('SEND_ALERT', {
+                target: { role: 'Admin' }, 
                 category: 'SYSTEM',
                 type: 'INFO',
                 title: 'AI Recommendations Updated',
