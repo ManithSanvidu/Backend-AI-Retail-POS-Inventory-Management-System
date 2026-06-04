@@ -67,7 +67,7 @@ const addProduct = async (req, res) => {
 
         // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'INFO',
             title: 'New Product Added',
@@ -182,12 +182,12 @@ const updateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'INFO',
             title: 'Product Updated',
             message: `Product "${updatedProduct.name}" details have been updated.`,
-            channels: ['in-app']
+            channels: ['in-app', 'email']
         });
 
         res.status(200).json({
@@ -222,12 +222,12 @@ const deactivateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'WARNING',
             title: 'Product Deactivated',
             message: `Product "${updatedProduct.name}" has been deactivated.`,
-            channels: ['in-app']
+            channels: ['in-app', 'email']
         });
 
         res.status(200).json({
@@ -261,7 +261,7 @@ const deleteProduct = async (req, res) => {
 
         // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'WARNING',
             title: 'Product Deleted',
@@ -438,12 +438,12 @@ const reactivateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'admin' }, 
+            target: { roles: ['Admin', 'Manager'] }, 
             category: 'INVENTORY',
             type: 'INFO',
             title: 'Product Reactivated',
             message: `Product "${updatedProduct.name}" has been reactivated.`,
-            channels: ['in-app']
+            channels: ['in-app', 'email']
         });
 
         res.status(200).json({
