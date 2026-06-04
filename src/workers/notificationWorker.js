@@ -16,11 +16,11 @@ const notificationWorker = new Worker(
 
     try {
         if (type === 'EMAIL') {
-            await emailSender.sendMail({
-                to: recipient,
-                subject: content.subject,
-                text: content.text,
-            });
+            await emailSender.sendEmail(
+                recipient,
+                content.subject,
+                content.text
+            );
             console.log(`[Worker] Email successfully sent to ${recipient}`);
         } else if (type === 'SMS') {
             await smsSender.sendSMS(recipient, content.text);

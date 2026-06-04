@@ -18,6 +18,7 @@ const connectDB = require('./config/db');
 const sockethandler = require('./sockets/sockethandler');
 const setupNotificationSockets = require('./sockets/notificationSockets');
 const { initInventoryAlertJob } = require('./jobs/inventoryAlertJob');
+require('./services/NotificationService'); // Initialize Notification Event Listeners
 
 const PORT = process.env.PORT || 5000;
 
