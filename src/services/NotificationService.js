@@ -14,7 +14,7 @@ const processAlert = async (data) => {
     if (target && target.userId) {
       query._id = target.userId;
     } else if (target) {
-      if (target.role) query.role = target.role.toLowerCase();
+      if (target.role) query.role = target.role.toUpperCase();
       if (target.branchId) query.branch = target.branchId; // Auth team used 'branch' in User.js
     }
 
@@ -45,7 +45,7 @@ const processAlert = async (data) => {
       // In-App Notification (Database + WebSocket)
       if (channels.includes('in-app') && prefs.inAppEnabled) {
         const newNotif = await Notification.create({
-          recipient: userId,
+          user: userId,
           category,
           type,
           title,
