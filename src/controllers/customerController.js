@@ -1,5 +1,6 @@
 const customerService = require("../services/customerService");
 const systemEvents = require("../events/eventBus");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // CREATE
 exports.createCustomer = async (req, res) => {
@@ -53,6 +54,9 @@ exports.createCustomer = async (req, res) => {
 
 // GET ALL
 exports.getCustomers = async (req, res) => {
+    if (!isMongoConnected()) {
+        return res.json({ success: true, count: 0, data: [] });
+    }
     try {
         const search = req.query.search || "";
         const data = await customerService.getAllCustomers(search);
