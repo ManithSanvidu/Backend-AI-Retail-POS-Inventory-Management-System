@@ -60,7 +60,7 @@ const validateUpdateStock = (req, res, next) => {
 router.get(
     "/",
     protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
+    authorize("admin", "manager", "super_admin", "ADMIN", "MANAGER", "SUPER_ADMIN"),
     getInventory
 );
 
@@ -68,7 +68,7 @@ router.get(
 router.get(
     "/history",
     protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
+    authorize("admin", "manager", "super_admin", "ADMIN", "MANAGER", "SUPER_ADMIN"),
     getMovementHistory
 );
 
@@ -76,7 +76,7 @@ router.get(
 router.get(
     "/alerts",
     protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
+    authorize("admin", "manager", "super_admin", "ADMIN", "MANAGER", "SUPER_ADMIN"),
     getLowStockAlerts
 );
 
@@ -84,7 +84,7 @@ router.get(
 router.get(
     "/summary",
     protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
+    authorize("admin", "manager", "super_admin", "ADMIN", "MANAGER", "SUPER_ADMIN"),
     getInventorySummary
 );
 
@@ -92,7 +92,7 @@ router.get(
 router.get(
     "/:id",
     protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER", "EMPLOYEE"),
+    authorize("admin", "manager", "super_admin", "ADMIN", "MANAGER", "SUPER_ADMIN"),
     getInventoryById
 );
 
