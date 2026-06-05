@@ -40,10 +40,10 @@ class DashboardService {
 
       // Parallel execution for better performance
       const [salesStats, inventoryStats, employeeStats, systemStats] = await Promise.all([
-        includeSales ? this.calculateSalesMetrics(filterQuery) : Promise.resolve({}),
-        includeInventory ? this.calculateInventoryMetrics(filterQuery) : Promise.resolve({}),
-        includeEmployees ? this.calculateEmployeeMetrics(filterQuery) : Promise.resolve({}),
-        this.calculateSystemMetrics(filterQuery),
+        includeSales ? this.calculateSalesMetrics(filterQuery).catch(e => ({})) : Promise.resolve({}),
+        includeInventory ? this.calculateInventoryMetrics(filterQuery).catch(e => ({})) : Promise.resolve({}),
+        includeEmployees ? this.calculateEmployeeMetrics(filterQuery).catch(e => ({})) : Promise.resolve({}),
+        this.calculateSystemMetrics(filterQuery).catch(e => ({})),
       ]);
 
       const kpis = this.calculateKPIs({

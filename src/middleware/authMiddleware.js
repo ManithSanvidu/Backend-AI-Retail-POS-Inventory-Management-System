@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 
 // check Login
@@ -18,15 +19,28 @@ const protect = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Ensure Database is connected before looking up user
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({ message: 'Database connection lost. Please try again in a moment.' });
+        }
+
         req.user = await User.findById(decoded.id).select('-password');
 
         if (!req.user || !req.user.isActive) {
-            return res.status(401).json({ message: 'Account disabled' });
+            return res.status(401).json({ message: 'Account disabled or user not found' });
         }
 
         next();
     } catch (err) {
-        return res.status(401).json({ message: 'Token invalid or expired' });
+        if (err.name === 'TokenExpiredError') {
+            return res.status(401).json({ message: 'Session expired. Please log in again.' });
+        }
+        if (err.name === 'JsonWebTokenError') {
+            return res.status(401).json({ message: 'Invalid token. Please log in again.' });
+        }
+        // If it's not a JWT error, it's a server/DB error
+        return res.status(500).json({ message: 'Internal server error during authentication' });
     }
 };
 
