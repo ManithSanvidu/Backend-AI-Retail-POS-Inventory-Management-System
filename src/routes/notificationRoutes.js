@@ -5,12 +5,13 @@ const {
   markAsRead,
   markAllAsRead,
   getPreferences,
-  updatePreferences
+  updatePreferences,
+  getEmailLogs
 } = require('../controllers/NotificationController');
 
-// In a real app, you would add an Auth Middleware here to verify JWT
-// router.use(authMiddleware);
+const { protect } = require('../middleware/authMiddleware');
 
+router.use(protect);
 // Notification endpoints
 router.get('/', getNotifications);
 router.put('/read-all', markAllAsRead); // Put this before /:id/read to avoid route conflict
@@ -19,5 +20,8 @@ router.put('/:id/read', markAsRead);
 // Preferences endpoints
 router.get('/preferences', getPreferences);
 router.put('/preferences', updatePreferences);
+
+// Email Logs endpoint
+router.get('/emails', getEmailLogs);
 
 module.exports = router;

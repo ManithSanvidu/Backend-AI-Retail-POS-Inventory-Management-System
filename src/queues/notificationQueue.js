@@ -17,10 +17,12 @@ if (!redisUri) {
   });
 
   connection.on('error', (error) => {
-    console.warn(`⚠️ Redis connection error for NotificationQueue: ${error.message}`);
+    // console.warn(`⚠️ Redis connection error for NotificationQueue: ${error.message}`);
   });
 
   notificationQueue = new Queue('NotificationQueue', { connection });
+  notificationQueue.on('error', () => {}); // Sink unhandled Redis reconnect errors
+  
   console.log('✅ BullMQ NotificationQueue initialized');
 }
 
