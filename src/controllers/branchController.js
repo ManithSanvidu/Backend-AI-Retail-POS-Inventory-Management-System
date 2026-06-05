@@ -56,7 +56,15 @@ const getBranchById = async (req, res) => {
       return res.status(404).json({ message: "Branch not found" });
     }
 
-    res.status(200).json(branch);
+    const branchData = branch.toObject();
+
+    if (branchData.manager) {
+      const m = branchData.manager;
+      branchData.manager.displayName = 
+        `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || "N/A";
+    }
+
+    res.status(200).json(branchData);
   } catch (error) {
     res.status(500).json({
       message: error.message,
