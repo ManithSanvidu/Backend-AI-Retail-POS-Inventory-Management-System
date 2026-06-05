@@ -42,6 +42,7 @@ const checkLowStockAndNotify = async () => {
         }
 
         let notificationsCreated = 0;
+        let lowStockListText = "Here are the current items that are running low on stock:\n\n";
 
         // 3. Loop through low stock items and notify each administrator
         for (const item of lowStockItems) {
@@ -49,6 +50,8 @@ const checkLowStockAndNotify = async () => {
             const branchName = item.branch ? item.branch.name : "Unknown Branch";
             const reorderLevel = item.product ? item.product.reorderLevel : 0;
             const currentQty = item.quantity;
+
+            lowStockListText += `- ${productName} (${branchName}): ${currentQty} units remaining (Threshold: ${reorderLevel})\n`;
 
             const title = `⚠️ Low Stock Alert: ${productName}`;
             const message = `Product '${productName}' is running low in branch '${branchName}'. Current stock: ${currentQty} units (Reorder Threshold: ${reorderLevel} units). Please prepare a replenishment purchase order.`;
@@ -72,11 +75,19 @@ const checkLowStockAndNotify = async () => {
                     notificationsCreated++;
                 }
             }
+        }
 
-            // Placeholder hook for external Email/SMS notifications
-            // if (process.env.ENABLE_NOTIFICATION_DISPATCH === 'true') {
-            //     await dispatchEmailOrSMS(productName, currentQty, reorderLevel, branchName);
-            // }
+        // Consolidated Email Sending
+        if (notificationsCreated > 0) {
+            const systemEvents = require("../events/eventBus");
+            systemEvents.emit('SEND_ALERT', {
+                target: { roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                category: 'INVENTORY',
+                title: '⚠️ Daily Low Stock Summary Report',
+                message: `Hello,\n\nThe system has detected new items running below their reorder threshold. Please review the following low-stock inventory:\n\n${lowStockListText}\n\nLog in to the POS Dashboard to prepare replenishment purchase orders.`,
+                type: 'WARNING',
+                channels: ['email'] // ONLY EMAIL
+            });
         }
 
         console.log(`[Inventory Cron Job] Done. Registered ${notificationsCreated} new alert notifications across administrative users.`);
