@@ -2,14 +2,17 @@ const aiChatService = require('../services/aiChatService');
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { message, sessionId, customerId } = req.body;
+    const { message, sessionId, customerId, chatType } = req.body;
     if (!message || !sessionId) {
       return res.status(400).json({ success: false, message: 'message and sessionId are required' });
     }
 
-    const result = await aiChatService.processChatMessage(message, sessionId, customerId);
+    const result = await aiChatService.processChatMessage(message, sessionId, customerId, chatType);
     res.json(result);
   } catch (error) {
+    if (error.isRateLimit) {
+      return res.status(503).json({ success: false, error: error.message, retryAfter: 15 });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 };
