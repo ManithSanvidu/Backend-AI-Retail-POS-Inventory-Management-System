@@ -25,6 +25,13 @@ const generateResponse = async (prompt) => {
     return response.text();
   } catch (error) {
     console.error('Error generating Gemini response:', error);
+    // Gracefully handle rate-limit errors
+    if (error.status === 429) {
+      throw Object.assign(
+        new Error('AI service is temporarily rate-limited. Please wait a moment and try again.'),
+        { isRateLimit: true }
+      );
+    }
     throw new Error('Failed to generate AI response: ' + error.message);
   }
 };

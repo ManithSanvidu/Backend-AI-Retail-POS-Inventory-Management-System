@@ -1,6 +1,7 @@
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
 const systemEvents = require("../events/eventBus.js");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -38,16 +39,27 @@ const addProduct = async (req, res) => {
         }
 
         let imageUrl = "";
+        let imagePublicId = "";
 
         if (req.file) {
             const base64Image = req.file.buffer.toString("base64");
             const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
 
-            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                folder: "retail_pos_products"
-            });
-
-            imageUrl = uploadedImage.secure_url;
+            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
+                try {
+                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                        folder: "retail_pos_products"
+                    });
+                    imageUrl = uploadedImage.secure_url;
+                    imagePublicId = uploadedImage.public_id;
+                } catch (uploadErr) {
+                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
+                    imageUrl = dataURI;
+                }
+            } else {
+                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
+                imageUrl = dataURI;
+            }
         }
 
         const product = await Product.create({
@@ -60,19 +72,19 @@ const addProduct = async (req, res) => {
             price,
             costPrice,
             image: imageUrl,
+            imagePublicId,
             reorderLevel,
             unit,
             isActive
         });
 
-        // Trigger a notification
-        systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
-            category: 'INVENTORY',
-            type: 'INFO',
-            title: 'New Product Added',
+        systemEvents.emit("SEND_ALERT", {
+            target: { roles: ["Admin", "Manager"] },
+            category: "INVENTORY",
+            type: "INFO",
+            title: "New Product Added",
             message: `${name} has been added to the product catalog.`,
-            channels: ['in-app']
+            channels: ["in-app", "email"]
         });
 
         res.status(201).json({
@@ -94,6 +106,10 @@ const addProduct = async (req, res) => {
 // Get All Products
 const getAllProducts = async (req, res) => {
     try {
+        if (!isMongoConnected()) {
+            return res.status(200).json({ success: true, count: 0, products: [] });
+        }
+
         const products = await Product.find()
             .populate("category")
             .populate("supplier")
@@ -154,32 +170,72 @@ const updateProduct = async (req, res) => {
             });
         }
 
+        if (req.body.barcode && req.body.barcode !== product.barcode) {
+            const existingProduct = await Product.findOne({
+                barcode: req.body.barcode,
+                _id: { $ne: req.params.id }
+            });
+
+            if (existingProduct) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This barcode already exists"
+                });
+            }
+        }
+
         let imageUrl = product.image;
+        let imagePublicId = product.imagePublicId;
 
         if (req.file) {
+            if (product.imagePublicId) {
+                await cloudinary.uploader.destroy(product.imagePublicId);
+            }
+
             const base64Image = req.file.buffer.toString("base64");
             const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
 
-            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                folder: "retail_pos_products"
-            });
-
-            imageUrl = uploadedImage.secure_url;
+            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
+                try {
+                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                        folder: "retail_pos_products"
+                    });
+                    imageUrl = uploadedImage.secure_url;
+                    imagePublicId = uploadedImage.public_id;
+                } catch (uploadErr) {
+                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
+                    imageUrl = dataURI;
+                }
+            } else {
+                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
+                imageUrl = dataURI;
+            }
         }
 
-        product.name = req.body.name || product.name;
-        product.barcode = req.body.barcode || product.barcode;
-        product.category = req.body.category || product.category;
-        product.supplier = req.body.supplier || product.supplier;
-        product.brand = req.body.brand || product.brand;
-        product.description = req.body.description || product.description;
-        product.price = req.body.price || product.price;
-        product.costPrice = req.body.costPrice || product.costPrice;
-        product.reorderLevel = req.body.reorderLevel || product.reorderLevel;
-        product.unit = req.body.unit || product.unit;
+        product.name = req.body.name ?? product.name;
+        product.barcode = req.body.barcode ?? product.barcode;
+        product.category = req.body.category ?? product.category;
+        product.supplier = req.body.supplier ?? product.supplier;
+        product.brand = req.body.brand ?? product.brand;
+        product.description = req.body.description ?? product.description;
+        product.price = req.body.price ?? product.price;
+        product.costPrice = req.body.costPrice ?? product.costPrice;
+        product.reorderLevel = req.body.reorderLevel ?? product.reorderLevel;
+        product.unit = req.body.unit ?? product.unit;
+        product.isActive = req.body.isActive ?? product.isActive;
         product.image = imageUrl;
+        product.imagePublicId = imagePublicId;
 
         const updatedProduct = await product.save();
+
+        systemEvents.emit("SEND_ALERT", {
+            target: { roles: ["Admin", "Manager"] },
+            category: "INVENTORY",
+            type: "INFO",
+            title: "Product Updated",
+            message: `Product "${updatedProduct.name}" details have been updated.`,
+            channels: ["in-app", "email"]
+        });
 
         res.status(200).json({
             success: true,
@@ -212,6 +268,15 @@ const deactivateProduct = async (req, res) => {
 
         const updatedProduct = await product.save();
 
+        systemEvents.emit('SEND_ALERT', {
+            target: { roles: ['Admin', 'Manager'] }, 
+            category: 'INVENTORY',
+            type: 'WARNING',
+            title: 'Product Deactivated',
+            message: `Product "${updatedProduct.name}" has been deactivated.`,
+            channels: ['in-app', 'email']
+        });
+
         res.status(200).json({
             success: true,
             message: "Product deactivated successfully",
@@ -239,21 +304,24 @@ const deleteProduct = async (req, res) => {
             });
         }
 
+        if (product.imagePublicId) {
+            await cloudinary.uploader.destroy(product.imagePublicId);
+        }
+
         await Product.findByIdAndDelete(req.params.id);
 
-        // Trigger a notification
-        systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
-            category: 'INVENTORY',
-            type: 'WARNING',
-            title: 'Product Deleted',
+        systemEvents.emit("SEND_ALERT", {
+            target: { roles: ["Admin", "Manager"] },
+            category: "INVENTORY",
+            type: "WARNING",
+            title: "Product Deleted",
             message: `Product "${product.name}" has been permanently deleted from the catalog.`,
-            channels: ['in-app', 'email']
+            channels: ["in-app", "email"]
         });
 
         res.status(200).json({
             success: true,
-            message: "Product deleted successfully"
+            message: "Product and image deleted successfully"
         });
 
     } catch (error) {
@@ -418,6 +486,15 @@ const reactivateProduct = async (req, res) => {
         product.isActive = true;
 
         const updatedProduct = await product.save();
+
+        systemEvents.emit('SEND_ALERT', {
+            target: { roles: ['Admin', 'Manager'] }, 
+            category: 'INVENTORY',
+            type: 'INFO',
+            title: 'Product Reactivated',
+            message: `Product "${updatedProduct.name}" has been reactivated.`,
+            channels: ['in-app', 'email']
+        });
 
         res.status(200).json({
             success: true,

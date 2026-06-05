@@ -1,5 +1,29 @@
 const intents = [
   {
+    intent: 'CREATE_PO',
+    keywords: ['create po', 'create a po', 'purchase order', 'buy', 'order stock'],
+    apiEndpoint: null,
+    params: {}
+  },
+  {
+    intent: 'SEND_OFFER',
+    keywords: ['send offer', 'send discount', 'promo', 'promotion'],
+    apiEndpoint: null,
+    params: {}
+  },
+  {
+    intent: 'UPDATE_PRICE',
+    keywords: ['update price', 'drop price', 'discount', 'lower price'],
+    apiEndpoint: null,
+    params: {}
+  },
+  {
+    intent: 'LIQUIDATE',
+    keywords: ['liquidate', 'clearance', 'dead stock'],
+    apiEndpoint: null,
+    params: {}
+  },
+  {
     intent: 'SALES',
     keywords: ['best seller', 'popular', 'top product', 'top selling', 'best selling'],
     apiEndpoint: '/predict/sales/top-products',

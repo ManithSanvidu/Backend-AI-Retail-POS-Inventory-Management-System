@@ -92,6 +92,7 @@ const saleSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
       required: true,
+      default: null,
     },
 
     items: [saleItemSchema],
