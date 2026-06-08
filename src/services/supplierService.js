@@ -218,11 +218,26 @@ class SupplierService {
     // GET ALL PERFORMANCE REPORTS
     async getAllPerformanceReports() {
         const mongoose = require("mongoose");
+        const PurchaseOrder = require("../models/PurchaseOrder");
         if (mongoose.connection.readyState !== 1) {
             return [];
         }
         const suppliers = await Supplier.find({});
-        return suppliers.map(supplier => {
+        const reports = await Promise.all(suppliers.map(async (supplier) => {
+            const purchaseOrderCount = await PurchaseOrder.countDocuments({
+                $or: [
+                    { supplier: supplier._id },
+                    {
+                        supplierName: {
+                            $regex: new RegExp(
+                                "^" + supplier.companyName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + "$",
+                                "i",
+                            ),
+                        },
+                    },
+                ],
+            });
+
             let recommendation = supplier.aiRecommendation;
             if (!recommendation) {
                 recommendation = "Stable performance. Standard operations recommended.";
@@ -248,12 +263,15 @@ class SupplierService {
                 rating: supplier.rating,
                 status: supplier.status,
                 totalSpend: supplier.totalSpend,
+                purchaseOrderCount,
                 performance: supplier.performance || {},
                 contractStatus: supplier.contract?.status || "Under Negotiation",
                 contractEndDate: supplier.contract?.endDate || null,
                 aiRecommendation: recommendation
             };
-        });
+        }));
+
+        return reports;
     }
 
     // UPDATE CONTRACT
