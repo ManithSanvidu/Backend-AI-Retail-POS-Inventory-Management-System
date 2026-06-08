@@ -36,12 +36,19 @@ const requireMongoConnection = (res) => {
   return false;
 };
 
+const mailUser = process.env.SMTP_USER || process.env.EMAIL;
+const mailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL,
-    pass: process.env.EMAIL_PASS,
-  },
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: mailUser && mailPass
+    ? {
+        user: mailUser,
+        pass: mailPass,
+      }
+    : undefined,
 });
 
 exports.register = async (req, res) => {
@@ -137,7 +144,7 @@ exports.forgotPassword = async (req, res) => {
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
     await transporter.sendMail({
-      from: `"POS System" <${process.env.EMAIL}>`,
+      from: `"POS System" <${mailUser}>`,
       to: user.email,
       subject: 'Password Reset Request',
       html: `
