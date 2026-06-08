@@ -1,4 +1,5 @@
 const Inventory = require("../models/Inventory");
+const Branch = require('../models/Branch');
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 

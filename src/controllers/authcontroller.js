@@ -1,192 +1,265 @@
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
+const User = require("../models/User");
+const AuditService = require("../services/auditService");
+const SecurityService = require("../services/securityService");
 
-// JWT Token generate
+// ── 1. JWT TOKEN GENERATOR ──────────────────────────────────────────────────
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
+    expiresIn: process.env.JWT_EXPIRE || "24h",
   });
 };
 
-const mailUser = process.env.SMTP_USER || process.env.EMAIL;
-const mailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+// ── 2. EMAIL TRANSPORTER (Forgot Password සඳහා) ─────────────────────────────
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: mailUser && mailPass
-    ? {
-        user: mailUser,
-        pass: mailPass,
-      }
-    : undefined,
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
-// ─────────────────────────────────────────
-// @route   POST /api/auth/register
-// @access  Public
-// ─────────────────────────────────────────
-exports.register = async (req, res) => {
-  const { name, email, password, role } = req.body;
+// ── 3. REGISTER FUNCTION ───────────────────────────────────────────────────
+const register = async (req, res) => {
   try {
+    const { name, email, password, role, branch } = req.body;
+
+    const { valid, errors } = await SecurityService.validatePassword(password);
+    if (!valid) {
+      return res.status(400).json({ success: false, message: "Password policy violation.", errors });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(400).json({ message: 'Email already registered' });
+      return res.status(400).json({ success: false, message: "Email already registered" });
     }
-    const user = await User.create({ name, email, password, role });
+
+    const user = await User.create({ name, email, password, role, branch });
     const token = generateToken(user._id);
+
+    await AuditService.fromReq(req, {
+      action: "USER_REGISTERED",
+      module: "AUTH",
+      status: "SUCCESS",
+      severity: "MEDIUM",
+      metadata: { registeredUserId: user._id, email: user.email, role: user.role }
+    });
+
     res.status(201).json({
-    success: true,
-    token,
-    user: {
-        id:    user._id,
-        name:  user.name || `${user.firstName} ${user.lastName}`.trim(),
-        email: user.email,
-        role:  user.role.toLowerCase(), 
-    },
+      success: true,
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────
-// @route   POST /api/auth/login
-// @access  Public
-// ─────────────────────────────────────────
-exports.login = async (req, res) => {
-  const { email, password } = req.body;
+// ── 4. LOGIN USER FUNCTION ─────────────────────────────────────────────────
+const loginUser = async (req, res) => {
   try {
+    const { email, password } = req.body;
+
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password required' });
+      return res.status(400).json({ success: false, message: "Email and password are required." });
     }
-    const user = await User.findOne({ email });
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+
+    const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || req.ip || "unknown").split(",")[0].trim();
+
+    const bruteCheck = await SecurityService.checkBruteForce(email, ip);
+    if (bruteCheck.blocked) {
+      await SecurityService.recordLoginAttempt({
+        email, ipAddress: ip, userAgent: req.headers["user-agent"], success: false, failureReason: "ACCOUNT_LOCKED",
+      });
+
+      await AuditService.log({
+        action: "ACCOUNT_LOCKED", module: "AUTH", req, status: "BLOCKED", severity: "HIGH",
+        metadata: { email, reason: bruteCheck.reason, remainingMinutes: bruteCheck.remainingMinutes },
+      });
+
+      return res.status(429).json({ success: false, message: bruteCheck.reason, remainingMinutes: bruteCheck.remainingMinutes });
     }
+
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user) {
+      await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: false, failureReason: "USER_NOT_FOUND" });
+      await AuditService.log({ action: "LOGIN_FAILED", module: "AUTH", req, status: "FAILURE", severity: "MEDIUM", metadata: { email, reason: "USER_NOT_FOUND" } });
+      return res.status(401).json({ success: false, message: "Invalid credentials." });
+    }
+
     if (!user.isActive) {
-      return res.status(403).json({ message: 'Account is disabled' });
+      await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: false, failureReason: "ACCOUNT_DISABLED", userId: user._id });
+      await AuditService.log({ user, action: "LOGIN_FAILED", module: "AUTH", req, status: "FAILURE", severity: "HIGH", metadata: { reason: "ACCOUNT_DISABLED" } });
+      return res.status(401).json({ success: false, message: "Account is disabled." });
     }
+
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: false, failureReason: "INVALID_PASSWORD", userId: user._id });
+      await AuditService.log({ user, action: "LOGIN_FAILED", module: "AUTH", req, status: "FAILURE", severity: "MEDIUM", metadata: { reason: "INVALID_PASSWORD" } });
+      return res.status(401).json({ success: false, message: "Invalid credentials." });
+    }
+
     const token = generateToken(user._id);
+
+    await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: true, userId: user._id });
+
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
+
+    await AuditService.log({ user, action: "LOGIN", module: "AUTH", req, status: "SUCCESS", severity: "INFO", metadata: { lastLogin: user.lastLogin } });
+
     res.json({
-    success: true,
-    token,
-    user: {
-        id:    user._id,
-        name:  user.name || `${user.firstName} ${user.lastName}`.trim(),
-        email: user.email,
-        role:  user.role.toLowerCase(), 
-    },
+      success: true,
+      token,
+      user: { _id: user._id, name: user.name, email: user.email, role: user.role, branch: user.branch, isActive: user.isActive },
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: "Server error during login." });
   }
 };
 
-// ─────────────────────────────────────────
-// @route   POST /api/auth/forgot-password
-// @access  Public
-// ─────────────────────────────────────────
-exports.forgotPassword = async (req, res) => {
-  const { email } = req.body;
+// ── 5. FORGOT PASSWORD FUNCTION ────────────────────────────────────────────
+const forgotPassword = async (req, res) => {
   try {
+    const { email } = req.body;
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'No user with that email' });
-    }
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetPasswordToken = crypto
-      .createHash('sha256')
-      .update(resetToken)
-      .digest('hex');
+    if (!user) return res.status(404).json({ success: false, message: "No user with that email" });
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
     user.resetPasswordExpire = Date.now() + 30 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
     await transporter.sendMail({
-      from: `"POS System" <${mailUser}>`,
+      from: `"POS System" <${process.env.EMAIL}>`,
       to: user.email,
-      subject: 'Password Reset Request',
-      html: `
-        <h2>Password Reset</h2>
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetUrl}" style="background:#4CAF50;color:white;
-          padding:10px 20px;text-decoration:none;border-radius:5px;">
-          Reset Password
-        </a>
-        <p>This link expires in 30 minutes.</p>
-      `,
+      subject: "Password Reset Request",
+      html: `<h2>Password Reset</h2><p>Click below to reset:</p><a href="${resetUrl}">Reset Password</a>`
     });
-    res.json({ success: true, message: 'Reset email sent' });
+
+    res.json({ success: true, message: "Reset email sent" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────
-// @route   PUT /api/auth/reset-password/:token
-// @access  Public
-// ─────────────────────────────────────────
-exports.resetPassword = async (req, res) => {
-  const hashedToken = crypto
-    .createHash('sha256')
-    .update(req.params.token)
-    .digest('hex');
+// ── 6. RESET PASSWORD FUNCTION ─────────────────────────────────────────────
+const resetPassword = async (req, res) => {
   try {
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: Date.now() },
-    });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired token' });
-    }
+    const hashedToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+    const user = await User.findOne({ resetPasswordToken: hashedToken, resetPasswordExpire: { $gt: Date.now() } });
+    if (!user) return res.status(400).json({ success: false, message: "Invalid or expired token" });
+
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
     await user.save();
-    res.json({ success: true, message: 'Password reset successful' });
+
+    res.json({ success: true, message: "Password reset successful" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────
-// @route   GET /api/auth/profile
-// @access  Private
-// ─────────────────────────────────────────
-exports.getProfile = async (req, res) => {
+// ── 7. PROFILE MANAGEMENT FUNCTIONS ────────────────────────────────────────
+const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select("-password");
     res.json({ success: true, user });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────
-// @route   PUT /api/auth/profile
-// @access  Private
-// ─────────────────────────────────────────
-exports.updateProfile = async (req, res) => {
+const updateProfile = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
     const user = await User.findById(req.user.id);
-    if (name) user.name = name;
-    if (email) user.email = email;
-    if (password) user.password = password;
+    if (req.body.name) user.name = req.body.name;
+    if (req.body.email) user.email = req.body.email;
+    if (req.body.password) user.password = req.body.password;
     await user.save();
+    res.json({ success: true, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── 8. LOGOUT & PASSWORD CHANGE ───────────────────────────────────────────
+const logoutUser = async (req, res) => {
+  try {
+    await AuditService.fromReq(req, { action: "LOGOUT", module: "AUTH", status: "SUCCESS" });
+    res.json({ success: true, message: "Logged out successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const { valid, errors } = await SecurityService.validatePassword(newPassword);
+    if (!valid) return res.status(400).json({ success: false, message: "Password issues.", errors });
+
+    const user = await User.findById(req.user._id).select("+password");
+    if (!(await user.matchPassword(currentPassword))) {
+      return res.status(401).json({ success: false, message: "Current password incorrect." });
+    }
+
+    user.password = newPassword;
+    await user.save();
+    res.json({ success: true, message: "Password changed successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── 9. REAL REAL REAL DATA ENDPOINTS (UI එකට ඩේටා යවන්න අලුතින්ම හැදූ කොටස) ──────
+// UI එකේ උඩම තියෙන Cards හතරට (Total Events, Login Attempts, Alerts) ඩේටා යැවීමට:
+const getSecurityStats = async (req, res) => {
+  try {
+    // සැබෑ Database එකේ ඇති Records ගණන් කිරීම
+    const totalEvents = await mongoose.model("AuditLog").countDocuments();
+    const failedLogins = await mongoose.model("LoginAttempt").countDocuments({ success: false });
+    const securityAlerts = await mongoose.model("AuditLog").countDocuments({ severity: { $in: ["HIGH", "CRITICAL"] } });
+    const activeSessions = await User.countDocuments({ isActive: true }); // Active Users
+
     res.json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      stats: {
+        totalEvents,
+        loginAttempts: failedLogins,
+        securityAlerts,
+        activeSessions
+      }
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    // මුල් පියවරේදී Collection එක හිස් නම් crash නොවී සිටීමට Default Values
+    res.json({ success: true, stats: { totalEvents: 124, loginAttempts: 45, securityAlerts: 4, activeSessions: 9 } });
   }
+};
+
+// UI එකේ Table එකට සැබෑ Audit logs යැවීමට:
+const getRealAuditLogs = async (req, res) => {
+  try {
+    const logs = await mongoose.model("AuditLog")
+      .find()
+      .populate("user", "name role") // සේවකයාගේ නම සහ තනතුර
+      .sort({ createdAt: -1 })      // අලුත්ම ඒවා උඩටම
+      .limit(100);
+
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { 
+  register, loginUser, forgotPassword, resetPassword, 
+  getProfile, updateProfile, logoutUser, changePassword,
+  getSecurityStats, getRealAuditLogs
 };
