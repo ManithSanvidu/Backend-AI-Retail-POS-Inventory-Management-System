@@ -24,7 +24,6 @@ const configuredOrigins = (process.env.CORS_ORIGIN || '')
 const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigins])];
 
 // --- Middleware ---
-// CORS එක first! (Meka wenas karanna epa, frontend port 5173 ekata meka one)
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -34,14 +33,12 @@ app.use(cors({
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS","PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// --- Route Imports (Cleaned up duplicates) ---
 
 // Core & Transaction Routes
 const authRoutes = require('./routes/authRoutes');
@@ -71,10 +68,8 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const returnsRoutes = require('./routes/returnsRoutes');
 const reorderRoutes = require('./routes/reorderRoutes');
 
-// Import routes from Tharsiga — Reporting Module
+// Reporting Module
 const reportRoutes = require('./routes/reportRoutes');
-
-// --- API Routes (Cleaned up duplicates) ---
 
 // Auth, Users & HR
 app.use('/api/auth', authRoutes);
@@ -112,33 +107,34 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Root Route
 app.get('/', (req, res) => {
-    res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
+  res.json({ message: 'AI-Powered Multi-Branch Retail POS backend is running...' });
 });
 
 // Health Checks
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Server running' });
+  res.json({ status: 'ok', message: 'Server running' });
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Server running' });
+  res.json({ status: 'ok', message: 'Server running' });
 });
+
 // 404 Handler
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        error: `Route not found: ${req.method} ${req.originalUrl}`,
-    });
+  res.status(404).json({
+    success: false,
+    error: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
 });
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-    res.status(statusCode).json({
-        success: false,
-        error: err.message,
-        stack: process.env.NODE_ENV === 'production' ? null : err.stack,
-    });
+  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  res.status(statusCode).json({
+    success: false,
+    error: err.message,
+    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+  });
 });
 
 module.exports = app;

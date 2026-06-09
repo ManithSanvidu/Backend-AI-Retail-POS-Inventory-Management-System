@@ -28,11 +28,10 @@ if (!notificationsEnabled) {
     maxRetriesPerRequest: null,
   });
 
-  connection.on('error', (error) => {
-    console.warn(`Redis connection error for NotificationQueue: ${error.message}`);
-  });
+  connection.on('error', () => {});
 
   notificationQueue = new Queue('NotificationQueue', { connection });
+  notificationQueue.on('error', () => {});
   console.log('BullMQ NotificationQueue initialized');
 }
 

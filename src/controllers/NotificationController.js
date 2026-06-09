@@ -1,5 +1,6 @@
 const Notification = require('../models/Notification');
 const NotificationPreference = require('../models/NotificationPreference');
+const EmailLog = require('../models/EmailLog');
 
 // Get all notifications for the logged-in user
 const getNotifications = async (req, res) => {
@@ -12,7 +13,7 @@ const getNotifications = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const notifications = await Notification.find({ recipient: userId })
+    const notifications = await Notification.find({ user: userId })
       .sort({ createdAt: -1 })
       .limit(50); // Get latest 50
       
@@ -45,7 +46,7 @@ const markAllAsRead = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
     
-    await Notification.updateMany({ recipient: userId, isRead: false }, { isRead: true });
+    await Notification.updateMany({ user: userId, isRead: false }, { isRead: true });
     res.json({ success: true, message: 'All notifications marked as read' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -88,10 +89,23 @@ const updatePreferences = async (req, res) => {
   }
 };
 
+// Get email logs
+const getEmailLogs = async (req, res) => {
+  try {
+    const logs = await EmailLog.find({})
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
   markAllAsRead,
   getPreferences,
-  updatePreferences
+  updatePreferences,
+  getEmailLogs
 };

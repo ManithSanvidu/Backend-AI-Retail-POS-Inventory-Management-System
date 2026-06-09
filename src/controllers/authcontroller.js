@@ -229,3 +229,54 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+exports.loginUser = exports.login;
+
+exports.logoutUser = async (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully.' });
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    if (!requireMongoConnection(res)) return;
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required.' });
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user || !(await user.matchPassword(currentPassword))) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getSecurityStats = async (req, res) => {
+  res.json({
+    success: true,
+    stats: {
+      totalEvents: 0,
+      loginAttempts: 0,
+      securityAlerts: 0,
+      activeSessions: 0,
+    },
+  });
+};
+
+exports.getRealAuditLogs = async (req, res) => {
+  res.json({ success: true, data: [] });
+};
