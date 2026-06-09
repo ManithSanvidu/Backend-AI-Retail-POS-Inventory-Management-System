@@ -1,40 +1,37 @@
 const express = require('express');
 const {
-	register,
-	login,
-	forgotPassword,
-	resetPassword,
-	getProfile,
-	updateProfile,
+  register,
+  loginUser,
+  forgotPassword,
+  resetPassword,
+  getProfile,
+  updateProfile,
+  logoutUser,
+  changePassword,
+  getSecurityStats,
+  getRealAuditLogs
 } = require('../controllers/authcontroller');
-const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
+// Public Routes
 router.post('/register', register);
-router.post('/login', login);
+router.post('/login', loginUser);
 router.post('/forgot-password', forgotPassword);
 router.put('/reset-password/:token', resetPassword);
 
+// Private Authenticated Routes
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
+router.put('/change-password', protect, changePassword);
+router.post('/logout', protect, logoutUser);
 
-router.get(
-	'/admin-data',
-	protect,
-	authorizeRoles('SUPER_ADMIN', 'ADMIN'),
-	(req, res) => {
-		res.json({ success: true, message: 'Admin only data' });
-	},
-);
+router.get('/audit/stats', protect, getSecurityStats);
+router.get('/audit/logs', protect, getRealAuditLogs);
 
-router.get(
-	'/manager-data',
-	protect,
-	authorizeRoles('SUPER_ADMIN', 'ADMIN', 'MANAGER'),
-	(req, res) => {
-		res.json({ success: true, message: 'Admin and manager data' });
-	},
-);
+// Role Authorization Test Routes
+router.get('/admin-data', protect, authorize('admin'), (req, res) => res.json({ message: 'Admin only' }));
+router.get('/manager-data', protect, authorize('admin', 'manager'), (req, res) => res.json({ message: 'Manager data' }));
 
 module.exports = router;
