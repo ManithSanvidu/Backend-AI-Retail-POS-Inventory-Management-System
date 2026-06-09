@@ -1,6 +1,9 @@
 const Notification = require('../models/Notification');
 const NotificationPreference = require('../models/NotificationPreference');
 const EmailLog = require('../models/EmailLog');
+const SmsLog = require('../models/SmsLog');
+const Supplier = require('../models/Supplier');
+const { sendSMS } = require('../utils/smsSender');
 
 // Get all notifications for the logged-in user
 const getNotifications = async (req, res) => {
@@ -101,11 +104,60 @@ const getEmailLogs = async (req, res) => {
   }
 };
 
+// Send SMS to selected suppliers
+const sendSmsToSuppliers = async (req, res) => {
+  try {
+    const { supplierIds, message } = req.body;
+
+    if (!supplierIds || !Array.isArray(supplierIds) || supplierIds.length === 0) {
+      return res.status(400).json({ error: 'Supplier IDs are required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    const suppliers = await Supplier.find({ _id: { $in: supplierIds } });
+    if (suppliers.length === 0) {
+      return res.status(404).json({ error: 'No matching suppliers found' });
+    }
+
+    const results = [];
+    
+    for (const supplier of suppliers) {
+      if (!supplier.phone) {
+        results.push({ supplierId: supplier._id, status: 'Failed', error: 'No phone number available' });
+        continue;
+      }
+
+      const success = await sendSMS(supplier.phone, message);
+      
+      const status = success ? 'Sent' : 'Failed';
+      const errorMessage = success ? '' : 'Failed to send SMS via SMS Provider';
+      
+      await SmsLog.create({
+        supplierId: supplier._id,
+        recipientPhone: supplier.phone,
+        message,
+        status,
+        errorMessage
+      });
+
+      results.push({ supplierId: supplier._id, status });
+    }
+
+    res.json({ success: true, message: 'SMS dispatch process completed', results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
   markAllAsRead,
   getPreferences,
   updatePreferences,
-  getEmailLogs
+  getEmailLogs,
+  sendSmsToSuppliers
 };
