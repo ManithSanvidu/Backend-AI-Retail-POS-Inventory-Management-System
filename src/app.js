@@ -17,6 +17,8 @@ const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const recommendationsRoutes = require('./routes/recommendations');
 const chatRoutes = require('./routes/chat');
+const nlqueryRoutes = require('./routes/nlquery');
+const decisionsRoutes = require('./routes/decisions');
 
 // Frontend එකෙන් ඉල්ලන (404 errors ආපු) ඉතිරි සියලුම Routes මවුන්ට් කිරීම
 const employeeRoutes = require('./routes/employeeRoutes');
@@ -33,6 +35,8 @@ const salesRoutes = require('./routes/salesRoutes');
 const stockTransferRoutes = require('./routes/stockTransferRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const reorderRoutes = require('./routes/reorderRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 
@@ -79,12 +83,14 @@ app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/nlquery', nlqueryRoutes);
+app.use('/api/decisions', decisionsRoutes);
 
 // Frontend Dashboard සහ අනෙකුත් මොඩියුල සඳහා අත්‍යවශ්‍ය මවුන්ට්ස්
 app.use('/api/employees', employeeRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/branches', branchRoutes);
-  app.use('/api/products', productRoutes);
+app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/warehouses', warehouseRoutes);
@@ -95,6 +101,8 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/stock-transfers', stockTransferRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/reorders', reorderRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // ── Part 21: Audit & Security Routes ─────────────────────────────────────
 app.use('/api/audit', auditRoutes);
