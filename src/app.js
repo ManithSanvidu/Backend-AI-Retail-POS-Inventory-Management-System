@@ -53,6 +53,9 @@ const reorderRoutes = require('./routes/reorderRoutes');
 // Import routes from Tharsiga — Reporting Module
 const reportRoutes = require('./routes/reportRoutes');
 
+// Business Analytics Module
+const analyticsRoutes = require('./routes/analyticsRoutes');
+
 // --- API Routes (Cleaned up duplicates) ---
 
 // Auth, Users & HR
@@ -80,6 +83,9 @@ app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+
+// Business Analytics (advanced analytics, KPIs, insights, drill-down)
+app.use('/api/analytics', analyticsRoutes);
 
 // AI Features
 app.use('/api/chat', chatRoutes);
