@@ -5,7 +5,12 @@ const smsLogSchema = new mongoose.Schema(
     supplierId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Supplier",
-      required: true
+      required: false
+    },
+    warehouseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Warehouse",
+      required: false
     },
     recipientPhone: {
       type: String,

@@ -7,7 +7,9 @@ const {
   getPreferences,
   updatePreferences,
   getEmailLogs,
-  sendSmsToSuppliers
+  sendSmsToSuppliers,
+  sendSmsToWarehouses,
+  sendNotificationsToSuppliers
 } = require('../controllers/NotificationController');
 
 const { protect, authorize } = require('../middleware/authMiddleware');
@@ -25,7 +27,9 @@ router.put('/preferences', updatePreferences);
 // Email Logs endpoint
 router.get('/emails', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), getEmailLogs);
 
-// SMS endpoint
+// SMS & Multi-channel endpoints
 router.post('/sms/suppliers', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendSmsToSuppliers);
+router.post('/sms/warehouses', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendSmsToWarehouses);
+router.post('/notify/suppliers', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendNotificationsToSuppliers);
 
 module.exports = router;
