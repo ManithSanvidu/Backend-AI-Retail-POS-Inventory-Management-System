@@ -1,6 +1,11 @@
 const Notification = require('../models/Notification');
 const NotificationPreference = require('../models/NotificationPreference');
 const EmailLog = require('../models/EmailLog');
+const SmsLog = require('../models/SmsLog');
+const Supplier = require('../models/Supplier');
+const Warehouse = require('../models/Warehouse');
+const { sendSMS } = require('../utils/smsSender');
+const { sendEmail } = require('../utils/emailSender');
 
 // Get all notifications for the logged-in user
 const getNotifications = async (req, res) => {
@@ -101,11 +106,184 @@ const getEmailLogs = async (req, res) => {
   }
 };
 
+// Send SMS to selected suppliers
+const sendSmsToSuppliers = async (req, res) => {
+  try {
+    const { supplierIds, message } = req.body;
+
+    if (!supplierIds || !Array.isArray(supplierIds) || supplierIds.length === 0) {
+      return res.status(400).json({ error: 'Supplier IDs are required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    const suppliers = await Supplier.find({ _id: { $in: supplierIds } });
+    if (suppliers.length === 0) {
+      return res.status(404).json({ error: 'No matching suppliers found' });
+    }
+
+    const results = [];
+    
+    for (const supplier of suppliers) {
+      if (!supplier.phone) {
+        results.push({ supplierId: supplier._id, status: 'Failed', error: 'No phone number available' });
+        continue;
+      }
+
+      const success = await sendSMS(supplier.phone, message);
+      
+      const status = success ? 'Sent' : 'Failed';
+      const errorMessage = success ? '' : 'Failed to send SMS via SMS Provider';
+      
+      await SmsLog.create({
+        supplierId: supplier._id,
+        recipientPhone: supplier.phone,
+        message,
+        status,
+        errorMessage
+      });
+
+      results.push({ supplierId: supplier._id, status });
+    }
+
+    res.json({ success: true, message: 'SMS dispatch process completed', results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Send SMS to selected warehouses
+const sendSmsToWarehouses = async (req, res) => {
+  try {
+    const { warehouseIds, message } = req.body;
+
+    if (!warehouseIds || !Array.isArray(warehouseIds) || warehouseIds.length === 0) {
+      return res.status(400).json({ error: 'Warehouse IDs are required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    const warehouses = await Warehouse.find({ _id: { $in: warehouseIds } });
+    if (warehouses.length === 0) {
+      return res.status(404).json({ error: 'No matching warehouses found' });
+    }
+
+    const results = [];
+    
+    for (const warehouse of warehouses) {
+      if (!warehouse.phone) {
+        results.push({ warehouseId: warehouse._id, status: 'Failed', error: 'No phone number available' });
+        continue;
+      }
+
+      const success = await sendSMS(warehouse.phone, message);
+      
+      const status = success ? 'Sent' : 'Failed';
+      const errorMessage = success ? '' : 'Failed to send SMS via SMS Provider';
+      
+      await SmsLog.create({
+        warehouseId: warehouse._id,
+        recipientPhone: warehouse.phone,
+        message,
+        status,
+        errorMessage
+      });
+
+      results.push({ warehouseId: warehouse._id, status, error: errorMessage });
+    }
+
+    res.json({ success: true, message: 'SMS dispatch process completed', results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Send SMS and/or Email to selected suppliers
+const sendNotificationsToSuppliers = async (req, res) => {
+  try {
+    const { supplierIds, message, subject, sendSms, sendEmail: shouldSendEmail } = req.body;
+
+    if (!supplierIds || !Array.isArray(supplierIds) || supplierIds.length === 0) {
+      return res.status(400).json({ error: 'Supplier IDs are required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+    
+    if (!sendSms && !shouldSendEmail) {
+      return res.status(400).json({ error: 'Must select at least one channel (SMS or Email)' });
+    }
+    
+    if (shouldSendEmail && !subject) {
+      return res.status(400).json({ error: 'Subject is required for Email' });
+    }
+
+    const suppliers = await Supplier.find({ _id: { $in: supplierIds } });
+    if (suppliers.length === 0) {
+      return res.status(404).json({ error: 'No matching suppliers found' });
+    }
+
+    const results = [];
+    
+    for (const supplier of suppliers) {
+      const resultObj = { supplierId: supplier._id, smsStatus: 'Not Sent', emailStatus: 'Not Sent' };
+      
+      // Handle SMS
+      if (sendSms) {
+        if (!supplier.phone) {
+          resultObj.smsStatus = 'Failed: No phone';
+        } else {
+          const smsSuccess = await sendSMS(supplier.phone, message);
+          const status = smsSuccess ? 'Sent' : 'Failed';
+          const errorMessage = smsSuccess ? '' : 'Failed to send SMS via provider';
+          
+          await SmsLog.create({
+            supplierId: supplier._id,
+            recipientPhone: supplier.phone,
+            message,
+            status,
+            errorMessage
+          });
+          resultObj.smsStatus = status;
+        }
+      }
+      
+      // Handle Email
+      if (shouldSendEmail) {
+        if (!supplier.email) {
+          resultObj.emailStatus = 'Failed: No email';
+        } else {
+          try {
+            await sendEmail(supplier.email, subject, message);
+            resultObj.emailStatus = 'Sent';
+          } catch (err) {
+            resultObj.emailStatus = 'Failed';
+          }
+        }
+      }
+
+      results.push(resultObj);
+    }
+
+    res.json({ success: true, message: 'Notification dispatch process completed', results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
   markAllAsRead,
   getPreferences,
   updatePreferences,
-  getEmailLogs
+  getEmailLogs,
+  sendSmsToSuppliers,
+  sendSmsToWarehouses,
+  sendNotificationsToSuppliers
 };

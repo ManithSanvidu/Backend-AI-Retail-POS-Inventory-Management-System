@@ -102,14 +102,14 @@ const checkLowStockAndNotify = async () => {
  */
 const initInventoryAlertJob = () => {
     if (cron) {
-        // Schedule job to run at the start of every hour (0 * * * *)
-        cron.schedule("0 * * * *", checkLowStockAndNotify);
-        console.log("[Inventory Cron Job] Node-cron service scheduled successfully: Run every hour.");
+        // Schedule job to run at 8:00 AM every day (0 8 * * *)
+        cron.schedule("0 8 * * *", checkLowStockAndNotify);
+        console.log("[Inventory Cron Job] Node-cron service scheduled successfully: Run every day at 8:00 AM.");
     } else {
-        // Fallback to standard Node interval (every 1 hour) if cron package isn't loaded
-        const ONE_HOUR = 60 * 60 * 1000;
-        setInterval(checkLowStockAndNotify, ONE_HOUR);
-        console.log("[Inventory Cron Job] Node-cron missing. Falling back to standard setInterval timer: Run every hour.");
+        // Fallback to standard Node interval (every 24 hours) if cron package isn't loaded
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        setInterval(checkLowStockAndNotify, ONE_DAY);
+        console.log("[Inventory Cron Job] Node-cron missing. Falling back to standard setInterval timer: Run every 24 hours.");
     }
 
     // Run once immediately on startup so administrators don't wait an hour for initial audit alerts
