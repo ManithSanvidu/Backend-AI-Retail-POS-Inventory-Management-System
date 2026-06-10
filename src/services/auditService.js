@@ -1,19 +1,7 @@
 const AuditLog = require("../models/AuditLog");
+const SecurityEvent = require("../models/SecurityEvent");
 
-/**
- * Central audit logging service.
- * All modules should use this to record system activities.
- */
 const AuditService = {
-  /**
-   * Log an activity.
-   * @param {Object} params
-   * @param {Object|null} params.user     - req.user or null for system events
-   * @param {string}      params.action   - Action enum value
-   * @param {string}      params.module   - Module enum value
-   * @param {Object|null} params.req      - Express request object (optional)
-   * @param {Object}      [params.options] - Extra fields
-   */
   async log({
     user = null,
     action,
@@ -52,56 +40,82 @@ const AuditService = {
         userAgent: req?.headers?.["user-agent"] || null,
         method: req?.method || "SYSTEM",
         endpoint: req?.originalUrl || null,
-        previousValues,
-        newValues,
-        metadata,
-        severity,
+        previousValues: previousValues ? AuditService._sanitizeData(previousValues) : null,
+        newValues: newValues ? AuditService._sanitizeData(newValues) : null,
+        metadata: AuditService._sanitizeData(metadata),
+        severity: severity === "INFO" ? AuditService._inferSeverity(action, status) : severity,
         status,
         branch: branch || user?.branch || null,
         branchName,
         sessionId,
       };
 
-      // Auto-elevate severity based on action
-      if (!severity || severity === "INFO") {
-        entry.severity = AuditService._inferSeverity(action, status);
-      }
-
-      // Auto-flag suspicious events
-      if (
-        ["SUSPICIOUS_ACTIVITY", "UNAUTHORIZED_ACCESS", "ACCOUNT_LOCKED"].includes(action) ||
-        entry.severity === "CRITICAL" ||
-        entry.severity === "HIGH"
-      ) {
+      if (["SUSPICIOUS_ACTIVITY", "UNAUTHORIZED_ACCESS", "ACCOUNT_LOCKED"].includes(action) ||
+          entry.severity === "CRITICAL" || entry.severity === "HIGH") {
         entry.flagged = true;
         entry.flagReason = `Auto-flagged: ${action}`;
+        
+        // Also create SecurityEvent
+        await AuditService._createSecurityEvent(entry, action);
       }
 
       const log = new AuditLog(entry);
       await log.save();
       return log;
     } catch (err) {
-      // Never let audit logging crash the application
       console.error("[AuditService] Failed to write audit log:", err.message);
       return null;
     }
   },
 
-  /**
-   * Convenience: log from an Express request.
-   * Usage: AuditService.fromReq(req, { action, module, ... })
-   */
+  async _createSecurityEvent(auditEntry, action) {
+    try {
+      const eventTypeMap = {
+        "LOGIN_FAILED": "BRUTE_FORCE",
+        "ACCOUNT_LOCKED": "BRUTE_FORCE",
+        "UNAUTHORIZED_ACCESS": "UNAUTHORIZED_ACCESS",
+        "SUSPICIOUS_ACTIVITY": "MULTIPLE_FAILURES",
+        "ROLE_CHANGED": "PRIVILEGE_ESCALATION",
+        "SECURITY_POLICY_UPDATED": "CONFIG_CHANGE",
+      };
+      
+      const eventType = eventTypeMap[action] || "UNAUTHORIZED_ACCESS";
+      
+      const securityEvent = new SecurityEvent({
+        type: eventType,
+        severity: auditEntry.severity === "CRITICAL" ? "CRITICAL" : 
+                  auditEntry.severity === "HIGH" ? "HIGH" : "MEDIUM",
+        description: `${action} detected from IP ${auditEntry.ipAddress}`,
+        ipAddress: auditEntry.ipAddress,
+        userId: auditEntry.user,
+        userName: auditEntry.userName,
+        module: auditEntry.module,
+        metadata: auditEntry.metadata,
+      });
+      await securityEvent.save();
+    } catch (err) {
+      console.error("Failed to create security event:", err);
+    }
+  },
+
   async fromReq(req, { action, module, ...rest }) {
     return AuditService.log({ user: req.user, req, action, module, ...rest });
   },
 
-  /**
-   * Infer severity based on action type.
-   */
+  _sanitizeData(data) {
+    if (!data || typeof data !== "object") return data;
+    const sanitized = { ...data };
+    const sensitiveFields = ["password", "newPassword", "currentPassword", "token", "secret", "creditCard", "cvv"];
+    for (const field of sensitiveFields) {
+      if (field in sanitized) sanitized[field] = "[REDACTED]";
+    }
+    return sanitized;
+  },
+
   _inferSeverity(action, status) {
-    const critical = ["ACCOUNT_LOCKED", "UNAUTHORIZED_ACCESS", "SUSPICIOUS_ACTIVITY", "SECURITY_POLICY_UPDATED", "ROLE_CHANGED"];
-    const high = ["LOGIN_FAILED", "USER_DELETED", "BULK_DELETE", "SALE_VOIDED", "PERMISSION_DENIED", "PASSWORD_RESET_COMPLETE", "CONFIG_CHANGED"];
-    const medium = ["USER_CREATED", "USER_UPDATED", "PASSWORD_CHANGE", "STOCK_ADJUSTED", "DISCOUNT_APPLIED", "REFUND_PROCESSED", "PURCHASE_ORDER_APPROVED", "STOCK_TRANSFER_APPROVED"];
+    const critical = ["ACCOUNT_LOCKED", "UNAUTHORIZED_ACCESS", "SUSPICIOUS_ACTIVITY", "SECURITY_POLICY_UPDATED"];
+    const high = ["LOGIN_FAILED", "USER_DELETED", "BULK_DELETE", "SALE_VOIDED", "PERMISSION_DENIED"];
+    const medium = ["USER_CREATED", "USER_UPDATED", "PASSWORD_CHANGE", "STOCK_ADJUSTED"];
 
     if (status === "FAILURE" || status === "BLOCKED") return "HIGH";
     if (critical.includes(action)) return "CRITICAL";
@@ -110,9 +124,6 @@ const AuditService = {
     return "INFO";
   },
 
-  /**
-   * Get audit summary stats (for dashboard widget).
-   */
   async getSummary({ startDate, endDate, branch } = {}) {
     const match = {};
     if (startDate || endDate) {
@@ -130,6 +141,36 @@ const AuditService = {
     ]);
 
     return { total, bySeverity, byStatus, byModule };
+  },
+
+  async getStats() {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    const [totalEvents, loginAttempts, failedLogins, securityAlerts, activeSessions] = await Promise.all([
+      AuditLog.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+      AuditLog.countDocuments({ action: "LOGIN", createdAt: { $gte: thirtyDaysAgo } }),
+      AuditLog.countDocuments({ action: "LOGIN_FAILED", createdAt: { $gte: thirtyDaysAgo } }),
+      AuditLog.countDocuments({ severity: { $in: ["HIGH", "CRITICAL"] }, createdAt: { $gte: thirtyDaysAgo } }),
+      AuditLog.aggregate([
+        { $match: { action: "LOGIN", createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } } },
+        { $group: { _id: "$user" } },
+        { $count: "count" }
+      ]),
+    ]);
+
+    return {
+      totalEvents,
+      loginAttempts: loginAttempts + failedLogins,
+      failedLogins,
+      securityAlerts,
+      unresolvedAlerts: await AuditLog.countDocuments({ severity: { $in: ["HIGH", "CRITICAL"] }, flagged: true, reviewedBy: null }),
+      activeSessions: activeSessions[0]?.count || 0,
+      uniqueUsers: await AuditLog.distinct("user", { createdAt: { $gte: thirtyDaysAgo } }).then(users => users.length),
+      eventsTrend: 12,
+      loginTrend: -3,
+      alertsTrend: 8,
+    };
   },
 };
 

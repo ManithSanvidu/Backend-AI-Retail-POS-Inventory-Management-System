@@ -4,54 +4,50 @@ const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getAuditLogs,
   getAuditLogById,
-  getUserAuditLogs,
-  getAuditSummary,
-  getFlaggedEvents,
-  flagAuditLog,
-  reviewAuditLog,
-  getActivityTimeline,
+  getAuditStats,
+  getLoginAttempts,
+  getSecurityEvents,
+  resolveSecurityEvent,
+  detectSuspiciousActivity,
   getSecurityPolicy,
   updateSecurityPolicy,
   blacklistIP,
   removeBlacklistIP,
-  getLoginAttempts,
-  detectSuspiciousActivity,
   getComplianceReport,
   exportAuditLogs,
   validatePassword,
+  downloadAuditReport,  // Add this
 } = require("../controllers/auditController");
 
-// All audit routes require authentication
 router.use(protect);
 
-// ─── Audit Logs ─────────────────────────────────────────────────────────────
-// ADMIN and SUPER_ADMIN only
+// Audit Logs
 router.get("/logs", authorize("ADMIN", "SUPER_ADMIN", "admin"), getAuditLogs);
 router.get("/logs/export", authorize("ADMIN", "SUPER_ADMIN", "admin"), exportAuditLogs);
-router.get("/logs/flagged", authorize("ADMIN", "SUPER_ADMIN", "admin"), getFlaggedEvents);
-router.get("/logs/user/:userId", authorize("ADMIN", "SUPER_ADMIN", "admin"), getUserAuditLogs);
 router.get("/logs/:id", authorize("ADMIN", "SUPER_ADMIN", "admin"), getAuditLogById);
-router.patch("/logs/:id/flag", authorize("ADMIN", "SUPER_ADMIN", "admin"), flagAuditLog);
-router.patch("/logs/:id/review", authorize("ADMIN", "SUPER_ADMIN", "admin"), reviewAuditLog);
 
-// ─── Summary & Analytics ─────────────────────────────────────────────────────
-router.get("/summary", authorize("ADMIN", "SUPER_ADMIN", "admin", "MANAGER", "manager"), getAuditSummary);
-router.get("/activity-timeline", authorize("ADMIN", "SUPER_ADMIN", "admin", "MANAGER", "manager"), getActivityTimeline);
+// Stats
+router.get("/stats", authorize("ADMIN", "SUPER_ADMIN", "admin", "MANAGER"), getAuditStats);
 
-// ─── Security Monitoring ─────────────────────────────────────────────────────
+// Login History
 router.get("/login-attempts", authorize("ADMIN", "SUPER_ADMIN", "admin"), getLoginAttempts);
-router.get("/suspicious-activity", authorize("ADMIN", "SUPER_ADMIN", "admin"), detectSuspiciousActivity);
 
-// ─── Security Policy (SUPER_ADMIN only for mutations) ────────────────────────
+// Security Events
+router.get("/security-events", authorize("ADMIN", "SUPER_ADMIN", "admin"), getSecurityEvents);
+router.get("/suspicious-activity", authorize("ADMIN", "SUPER_ADMIN", "admin"), detectSuspiciousActivity);
+router.patch("/security-events/:id/resolve", authorize("ADMIN", "SUPER_ADMIN", "admin"), resolveSecurityEvent);
+
+// Security Policy
 router.get("/security-policy", authorize("ADMIN", "SUPER_ADMIN", "admin"), getSecurityPolicy);
 router.put("/security-policy", authorize("SUPER_ADMIN"), updateSecurityPolicy);
 router.post("/security-policy/blacklist", authorize("ADMIN", "SUPER_ADMIN", "admin"), blacklistIP);
 router.delete("/security-policy/blacklist/:ip", authorize("ADMIN", "SUPER_ADMIN", "admin"), removeBlacklistIP);
 
-// ─── Compliance ──────────────────────────────────────────────────────────────
+// Compliance & Reports
 router.get("/compliance-report", authorize("ADMIN", "SUPER_ADMIN", "admin"), getComplianceReport);
+router.get("/reports/download", authorize("ADMIN", "SUPER_ADMIN", "admin"), downloadAuditReport);  // Add this
 
-// ─── Utility ─────────────────────────────────────────────────────────────────
-router.post("/validate-password", validatePassword); // open — called on password change screens
+// Utility
+router.post("/validate-password", validatePassword);
 
 module.exports = router;
