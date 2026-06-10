@@ -4,6 +4,7 @@ const EmailLog = require('../models/EmailLog');
 const SmsLog = require('../models/SmsLog');
 const Supplier = require('../models/Supplier');
 const Warehouse = require('../models/Warehouse');
+const Employee = require('../models/Employee');
 const { sendSMS } = require('../utils/smsSender');
 const { sendEmail } = require('../utils/emailSender');
 
@@ -276,6 +277,80 @@ const sendNotificationsToSuppliers = async (req, res) => {
   }
 };
 
+// Send SMS and/or Email to selected employees
+const sendNotificationsToEmployees = async (req, res) => {
+  try {
+    const { employeeIds, message, subject, sendSms, sendEmail: shouldSendEmail } = req.body;
+
+    if (!employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0) {
+      return res.status(400).json({ error: 'Employee IDs are required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+    
+    if (!sendSms && !shouldSendEmail) {
+      return res.status(400).json({ error: 'Must select at least one channel (SMS or Email)' });
+    }
+    
+    if (shouldSendEmail && !subject) {
+      return res.status(400).json({ error: 'Subject is required for Email' });
+    }
+
+    const employees = await Employee.find({ _id: { $in: employeeIds } });
+    if (employees.length === 0) {
+      return res.status(404).json({ error: 'No matching employees found' });
+    }
+
+    const results = [];
+    
+    for (const employee of employees) {
+      const resultObj = { employeeId: employee._id, smsStatus: 'Not Sent', emailStatus: 'Not Sent' };
+      
+      // Handle SMS
+      if (sendSms) {
+        if (!employee.phone) {
+          resultObj.smsStatus = 'Failed: No phone';
+        } else {
+          const smsSuccess = await sendSMS(employee.phone, message);
+          const status = smsSuccess ? 'Sent' : 'Failed';
+          const errorMessage = smsSuccess ? '' : 'Failed to send SMS via provider';
+          
+          await SmsLog.create({
+            supplierId: employee._id, // Repurposing supplierId field in SmsLog temporarily, or better use a generic target ID if needed
+            recipientPhone: employee.phone,
+            message,
+            status,
+            errorMessage
+          });
+          resultObj.smsStatus = status;
+        }
+      }
+      
+      // Handle Email
+      if (shouldSendEmail) {
+        if (!employee.email) {
+          resultObj.emailStatus = 'Failed: No email';
+        } else {
+          try {
+            await sendEmail(employee.email, subject, message);
+            resultObj.emailStatus = 'Sent';
+          } catch (err) {
+            resultObj.emailStatus = 'Failed';
+          }
+        }
+      }
+
+      results.push(resultObj);
+    }
+
+    res.json({ success: true, message: 'Notification dispatch process completed', results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
@@ -285,5 +360,6 @@ module.exports = {
   getEmailLogs,
   sendSmsToSuppliers,
   sendSmsToWarehouses,
-  sendNotificationsToSuppliers
+  sendNotificationsToSuppliers,
+  sendNotificationsToEmployees
 };
