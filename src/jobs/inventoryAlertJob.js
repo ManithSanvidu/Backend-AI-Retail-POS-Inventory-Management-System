@@ -108,7 +108,7 @@ const checkLowStockAndNotify = async () => {
         await SystemJob.findOneAndUpdate(
             { jobName: "InventoryAlert" },
             { lastRunTime: new Date(), status: "Success" },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
     } catch (error) {
         console.error("[Inventory Cron Job Error]:", error);

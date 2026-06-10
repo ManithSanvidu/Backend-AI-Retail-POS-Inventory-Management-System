@@ -35,7 +35,7 @@ const markAsRead = async (req, res) => {
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,
       { isRead: true },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!notification) return res.status(404).json({ error: 'Notification not found' });
     res.json(notification);
@@ -87,7 +87,7 @@ const updatePreferences = async (req, res) => {
     const prefs = await NotificationPreference.findOneAndUpdate(
       { userId },
       { emailEnabled, smsEnabled, inAppEnabled },
-      { new: true, upsert: true } // Create if doesn't exist
+      { returnDocument: 'after', upsert: true } // Create if doesn't exist
     );
     res.json(prefs);
   } catch (error) {
