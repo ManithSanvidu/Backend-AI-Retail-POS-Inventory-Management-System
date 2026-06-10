@@ -1,16 +1,15 @@
 const SecurityPolicy = require("../models/SecurityPolicy");
 const LoginAttempt = require("../models/LoginAttempt");
 const AuditLog = require("../models/AuditLog");
+const SecurityEvent = require("../models/SecurityEvent");
+const LoginSession = require("../models/LoginSession");
 const AuditService = require("./auditService");
 
-// In-memory cache for the active policy (TTL = 5 min)
 let _policyCache = null;
 let _policyCacheAt = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const SecurityService = {
-  // ─── Policy ────────────────────────────────────────────────────────────────
-
   async getActivePolicy() {
     const now = Date.now();
     if (_policyCache && now - _policyCacheAt < CACHE_TTL_MS) {
@@ -56,18 +55,12 @@ const SecurityService = {
     return policy;
   },
 
-  // ─── Login Attempt Tracking ─────────────────────────────────────────────────
-
   async recordLoginAttempt({ email, ipAddress, userAgent, success, failureReason = null, userId = null }) {
     const attempt = new LoginAttempt({ email, ipAddress, userAgent, success, failureReason, userId });
     await attempt.save();
     return attempt;
   },
 
-  /**
-   * Check if an account or IP should be blocked.
-   * Returns { blocked: true, reason, remainingMinutes } or { blocked: false }
-   */
   async checkBruteForce(email, ipAddress) {
     const policy = await SecurityService.getActivePolicy();
     const lp = policy.lockoutPolicy;
@@ -75,7 +68,6 @@ const SecurityService = {
 
     const window = new Date(Date.now() - lp.resetAfterMinutes * 60 * 1000);
 
-    // Check by email
     const emailAttempts = await LoginAttempt.countDocuments({
       email: email.toLowerCase(),
       success: false,
@@ -91,7 +83,6 @@ const SecurityService = {
       }
     }
 
-    // Check by IP (2x threshold)
     const ipAttempts = await LoginAttempt.countDocuments({
       ipAddress,
       success: false,
@@ -105,26 +96,10 @@ const SecurityService = {
     return { blocked: false };
   },
 
-  async getRecentFailedAttempts(email, ipAddress, windowMinutes = 60) {
-    const window = new Date(Date.now() - windowMinutes * 60 * 1000);
-    return LoginAttempt.find({
-      $or: [{ email: email.toLowerCase() }, { ipAddress }],
-      success: false,
-      createdAt: { $gte: window },
-    }).sort({ createdAt: -1 });
-  },
-
-  // ─── Suspicious Activity Detection ─────────────────────────────────────────
-
-  /**
-   * Detect and flag suspicious patterns.
-   * Called periodically or after each login failure.
-   */
   async detectSuspiciousActivity() {
     const flags = [];
-    const windowStart = new Date(Date.now() - 60 * 60 * 1000); // 1 hour
+    const windowStart = new Date(Date.now() - 60 * 60 * 1000);
 
-    // 1. IPs with many failed logins from many different accounts
     const suspiciousIPs = await LoginAttempt.aggregate([
       { $match: { success: false, createdAt: { $gte: windowStart } } },
       { $group: { _id: "$ipAddress", attempts: { $sum: 1 }, uniqueEmails: { $addToSet: "$email" } } },
@@ -134,48 +109,21 @@ const SecurityService = {
 
     for (const ip of suspiciousIPs) {
       flags.push({ type: "BRUTE_FORCE_IP", ipAddress: ip._id, attempts: ip.attempts, uniqueEmails: ip.uniqueEmailCount });
-      await AuditService.log({
-        action: "SUSPICIOUS_ACTIVITY",
-        module: "SECURITY",
-        severity: "CRITICAL",
-        status: "BLOCKED",
-        metadata: { type: "BRUTE_FORCE_IP", ipAddress: ip._id, attempts: ip.attempts },
-      });
-    }
-
-    // 2. Accounts with rapid role changes
-    const recentRoleChanges = await AuditLog.aggregate([
-      { $match: { action: "ROLE_CHANGED", createdAt: { $gte: windowStart } } },
-      { $group: { _id: "$resourceId", count: { $sum: 1 } } },
-      { $match: { count: { $gte: 3 } } },
-    ]);
-
-    for (const rc of recentRoleChanges) {
-      flags.push({ type: "RAPID_ROLE_CHANGE", userId: rc._id, count: rc.count });
-      await AuditLog.updateMany(
-        { action: "ROLE_CHANGED", resourceId: rc._id, createdAt: { $gte: windowStart } },
-        { flagged: true, flagReason: "Rapid role change detected" }
-      );
-    }
-
-    // 3. Unusual off-hours admin actions (11pm–5am)
-    const now = new Date();
-    const hour = now.getUTCHours();
-    if (hour >= 23 || hour <= 5) {
-      const offHoursAdmin = await AuditLog.countDocuments({
-        userRole: { $in: ["ADMIN", "SUPER_ADMIN"] },
-        action: { $in: ["USER_DELETED", "ROLE_CHANGED", "SECURITY_POLICY_UPDATED", "BULK_DELETE"] },
-        createdAt: { $gte: windowStart },
-      });
-      if (offHoursAdmin > 0) {
-        flags.push({ type: "OFF_HOURS_ADMIN_ACTION", count: offHoursAdmin });
+      
+      const existingEvent = await SecurityEvent.findOne({ type: "BRUTE_FORCE", ipAddress: ip._id, resolved: false });
+      if (!existingEvent) {
+        await SecurityEvent.create({
+          type: "BRUTE_FORCE",
+          severity: "HIGH",
+          description: `Brute force attack detected from IP ${ip._id} with ${ip.attempts} attempts across ${ip.uniqueEmailCount} accounts`,
+          ipAddress: ip._id,
+          metadata: { attempts: ip.attempts, uniqueEmails: ip.uniqueEmailCount },
+        });
       }
     }
 
     return flags;
   },
-
-  // ─── IP Policy ──────────────────────────────────────────────────────────────
 
   async isIPAllowed(ipAddress) {
     const policy = await SecurityService.getActivePolicy();
@@ -212,17 +160,8 @@ const SecurityService = {
     policy.ipPolicy.blacklist = policy.ipPolicy.blacklist.filter((ip) => ip !== ipAddress);
     await policy.save();
     SecurityService.invalidatePolicyCache();
-    await AuditService.log({
-      user: updatedBy,
-      action: "SECURITY_POLICY_UPDATED",
-      module: "SECURITY",
-      severity: "MEDIUM",
-      metadata: { change: "IP_REMOVED_FROM_BLACKLIST", ipAddress },
-    });
     return policy;
   },
-
-  // ─── Compliance Reports ─────────────────────────────────────────────────────
 
   async generateComplianceReport({ startDate, endDate, branch } = {}) {
     const match = {};
@@ -230,67 +169,24 @@ const SecurityService = {
     if (endDate) match.createdAt = { ...(match.createdAt || {}), $lte: new Date(endDate) };
     if (branch) match.branch = branch;
 
-    const [
-      totalEvents,
-      byAction,
-      bySeverity,
-      byStatus,
-      byModule,
-      byUser,
-      failedLogins,
-      flaggedEvents,
-      criticalEvents,
-      topIPs,
-    ] = await Promise.all([
+    const [totalEvents, byAction, bySeverity, byStatus, byModule, flaggedEvents, criticalEvents] = await Promise.all([
       AuditLog.countDocuments(match),
       AuditLog.aggregate([{ $match: match }, { $group: { _id: "$action", count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 20 }]),
       AuditLog.aggregate([{ $match: match }, { $group: { _id: "$severity", count: { $sum: 1 } } }]),
       AuditLog.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
       AuditLog.aggregate([{ $match: match }, { $group: { _id: "$module", count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
-      AuditLog.aggregate([
-        { $match: { ...match, user: { $ne: null } } },
-        { $group: { _id: { user: "$user", userName: "$userName", userRole: "$userRole" }, count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-      ]),
-      AuditLog.countDocuments({ ...match, action: "LOGIN_FAILED" }),
       AuditLog.countDocuments({ ...match, flagged: true }),
       AuditLog.find({ ...match, severity: "CRITICAL" }).sort({ createdAt: -1 }).limit(20).lean(),
-      AuditLog.aggregate([
-        { $match: { ...match, ipAddress: { $ne: "SYSTEM" } } },
-        { $group: { _id: "$ipAddress", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-      ]),
     ]);
 
     return {
       generatedAt: new Date(),
       period: { startDate, endDate },
-      summary: {
-        totalEvents,
-        failedLogins,
-        flaggedEvents,
-        criticalEventsCount: criticalEvents.length,
-      },
-      breakdown: {
-        byAction,
-        bySeverity,
-        byStatus,
-        byModule,
-      },
-      topUsers: byUser.map((u) => ({
-        userId: u._id.user,
-        userName: u._id.userName,
-        userRole: u._id.userRole,
-        activityCount: u.count,
-      })),
-      topIPs,
+      summary: { totalEvents, flaggedEvents, criticalEventsCount: criticalEvents.length },
+      breakdown: { byAction, bySeverity, byStatus, byModule },
       criticalEvents,
     };
   },
-
-  // ─── Password Validation ────────────────────────────────────────────────────
 
   async validatePassword(password) {
     const policy = await SecurityService.getActivePolicy();
@@ -304,6 +200,46 @@ const SecurityService = {
     if (pp.requireSpecialChars && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push("At least one special character required.");
 
     return { valid: errors.length === 0, errors };
+  },
+
+  // Session Management Functions
+  async createSession(user, req) {
+    const sessionId = require("crypto").randomUUID();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
+    const session = new LoginSession({
+      sessionId,
+      userId: user._id,
+      userEmail: user.email,
+      userName: user.name,
+      userRole: user.role,
+      ipAddress: req?.ip || req?.socket?.remoteAddress,
+      userAgent: req?.headers?.["user-agent"],
+      expiresAt,
+      lastActivityAt: new Date(),
+    });
+    await session.save();
+    return session;
+  },
+
+  async validateSession(sessionId) {
+    const session = await LoginSession.findOne({ sessionId, isActive: true, expiresAt: { $gt: new Date() } });
+    if (!session) return null;
+    
+    session.lastActivityAt = new Date();
+    await session.save();
+    return session;
+  },
+
+  async revokeSession(sessionId, reason = "User logout") {
+    const session = await LoginSession.findOne({ sessionId });
+    if (session) {
+      session.isActive = false;
+      session.revokedAt = new Date();
+      session.revocationReason = reason;
+      await session.save();
+    }
+    return session;
   },
 };
 

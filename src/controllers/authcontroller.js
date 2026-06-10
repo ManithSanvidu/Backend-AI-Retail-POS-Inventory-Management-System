@@ -6,13 +6,15 @@ const AuditService = require("../services/auditService");
 const SecurityService = require("../services/securityService");
 
 // ── 1. JWT TOKEN GENERATOR ──────────────────────────────────────────────────
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || "24h",
-  });
+const generateToken = (userId, sessionId) => {
+  return jwt.sign(
+    { id: userId, sessionId },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || "24h" }
+  );
 };
 
-// ── 2. EMAIL TRANSPORTER (Forgot Password සඳහා) ─────────────────────────────
+// ── 2. EMAIL TRANSPORTER ────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -21,7 +23,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ── 3. REGISTER FUNCTION ───────────────────────────────────────────────────
+// ── 3. REGISTER FUNCTION ────────────────────────────────────────────────────
 const register = async (req, res) => {
   try {
     const { name, email, password, role, branch } = req.body;
@@ -37,7 +39,8 @@ const register = async (req, res) => {
     }
 
     const user = await User.create({ name, email, password, role, branch });
-    const token = generateToken(user._id);
+    const session = await SecurityService.createSession(user, req);
+    const token = generateToken(user._id, session.sessionId);
 
     await AuditService.fromReq(req, {
       action: "USER_REGISTERED",
@@ -50,6 +53,7 @@ const register = async (req, res) => {
     res.status(201).json({
       success: true,
       token,
+      sessionId: session.sessionId,
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
@@ -57,7 +61,7 @@ const register = async (req, res) => {
   }
 };
 
-// ── 4. LOGIN USER FUNCTION ─────────────────────────────────────────────────
+// ── 4. LOGIN USER FUNCTION ──────────────────────────────────────────────────
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -103,26 +107,30 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid credentials." });
     }
 
-    const token = generateToken(user._id);
+    // Create session
+    const session = await SecurityService.createSession(user, req);
+    const token = generateToken(user._id, session.sessionId);
 
     await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: true, userId: user._id });
 
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    await AuditService.log({ user, action: "LOGIN", module: "AUTH", req, status: "SUCCESS", severity: "INFO", metadata: { lastLogin: user.lastLogin } });
+    await AuditService.log({ user, action: "LOGIN", module: "AUTH", req, status: "SUCCESS", severity: "INFO", metadata: { lastLogin: user.lastLogin }, sessionId: session.sessionId });
 
     res.json({
       success: true,
       token,
+      sessionId: session.sessionId,
       user: { _id: user._id, name: user.name, email: user.email, role: user.role, branch: user.branch, isActive: user.isActive },
     });
   } catch (err) {
+    console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Server error during login." });
   }
 };
 
-// ── 5. FORGOT PASSWORD FUNCTION ────────────────────────────────────────────
+// ── 5. FORGOT PASSWORD FUNCTION ─────────────────────────────────────────────
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -148,7 +156,7 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-// ── 6. RESET PASSWORD FUNCTION ─────────────────────────────────────────────
+// ── 6. RESET PASSWORD FUNCTION ──────────────────────────────────────────────
 const resetPassword = async (req, res) => {
   try {
     const hashedToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
@@ -166,7 +174,7 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// ── 7. PROFILE MANAGEMENT FUNCTIONS ────────────────────────────────────────
+// ── 7. PROFILE MANAGEMENT FUNCTIONS ─────────────────────────────────────────
 const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -189,9 +197,13 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// ── 8. LOGOUT & PASSWORD CHANGE ───────────────────────────────────────────
+// ── 8. LOGOUT & PASSWORD CHANGE ─────────────────────────────────────────────
 const logoutUser = async (req, res) => {
   try {
+    const sessionId = req.user?.sessionId || req.body?.sessionId;
+    if (sessionId) {
+      await SecurityService.revokeSession(sessionId, "User logout");
+    }
     await AuditService.fromReq(req, { action: "LOGOUT", module: "AUTH", status: "SUCCESS" });
     res.json({ success: true, message: "Logged out successfully." });
   } catch (err) {
@@ -212,54 +224,23 @@ const changePassword = async (req, res) => {
 
     user.password = newPassword;
     await user.save();
+    
+    await AuditService.fromReq(req, { action: "PASSWORD_CHANGE", module: "AUTH", status: "SUCCESS", severity: "MEDIUM" });
+    
     res.json({ success: true, message: "Password changed successfully." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── 9. REAL REAL REAL DATA ENDPOINTS (UI එකට ඩේටා යවන්න අලුතින්ම හැදූ කොටස) ──────
-// UI එකේ උඩම තියෙන Cards හතරට (Total Events, Login Attempts, Alerts) ඩේටා යැවීමට:
-const getSecurityStats = async (req, res) => {
-  try {
-    // සැබෑ Database එකේ ඇති Records ගණන් කිරීම
-    const totalEvents = await mongoose.model("AuditLog").countDocuments();
-    const failedLogins = await mongoose.model("LoginAttempt").countDocuments({ success: false });
-    const securityAlerts = await mongoose.model("AuditLog").countDocuments({ severity: { $in: ["HIGH", "CRITICAL"] } });
-    const activeSessions = await User.countDocuments({ isActive: true }); // Active Users
-
-    res.json({
-      success: true,
-      stats: {
-        totalEvents,
-        loginAttempts: failedLogins,
-        securityAlerts,
-        activeSessions
-      }
-    });
-  } catch (err) {
-    // මුල් පියවරේදී Collection එක හිස් නම් crash නොවී සිටීමට Default Values
-    res.json({ success: true, stats: { totalEvents: 124, loginAttempts: 45, securityAlerts: 4, activeSessions: 9 } });
-  }
-};
-
-// UI එකේ Table එකට සැබෑ Audit logs යැවීමට:
-const getRealAuditLogs = async (req, res) => {
-  try {
-    const logs = await mongoose.model("AuditLog")
-      .find()
-      .populate("user", "name role") // සේවකයාගේ නම සහ තනතුර
-      .sort({ createdAt: -1 })      // අලුත්ම ඒවා උඩටම
-      .limit(100);
-
-    res.json({ success: true, data: logs });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-module.exports = { 
-  register, loginUser, forgotPassword, resetPassword, 
-  getProfile, updateProfile, logoutUser, changePassword,
-  getSecurityStats, getRealAuditLogs
+// ── 9. EXPORT ALL FUNCTIONS ─────────────────────────────────────────────────
+module.exports = {
+  register,
+  loginUser,
+  forgotPassword,
+  resetPassword,
+  getProfile,
+  updateProfile,
+  logoutUser,
+  changePassword,
 };

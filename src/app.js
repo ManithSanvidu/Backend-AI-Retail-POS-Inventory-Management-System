@@ -69,11 +69,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── 2. Auth Rate Limiter ──────────────────────────────────────────────────
-// Brute-force ප්‍රහාර වලින් Auth endpoint එක ආරක්ෂා කර ගැනීමට
 app.use('/api/auth', rateLimitMiddleware({ windowMs: 15 * 60 * 1000, maxRequests: 20 }));
 
 // ── 3. Auto-Audit Middleware ──────────────────────────────────────────────
-// දත්ත වෙනස් කරන (POST, PUT, DELETE) සියලුම API කෝල්ස් ඔටෝමැටිකලි සිස්ටම් එකේ ලොග් කරයි
 app.use(autoAudit());
 
 // ── Mount All Routes (Frontend එකෙන් ඉල්ලන endpoints සියල්ලම මෙතැනට දැම්මා) ──
