@@ -108,7 +108,7 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
             },
             {
                 upsert: true,
-                new: true,
+                returnDocument: 'after',
                 setDefaultsOnInsert: true
             }
         ).lean();

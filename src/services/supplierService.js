@@ -45,7 +45,7 @@ class SupplierService {
         return await Supplier.findByIdAndUpdate(
             id,
             data,
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
     }
 

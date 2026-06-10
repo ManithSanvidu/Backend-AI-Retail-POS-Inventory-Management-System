@@ -31,11 +31,17 @@ router.post(
   createBranch
 );
 
-// Get all branches
+// // Get all branches
+// router.get(
+//   "/",
+//   protect,
+//   authorizeRoles("ADMIN", "SUPER_ADMIN"),
+//   getAllBranches
+// );
 router.get(
   "/",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getAllBranches
 );
 
@@ -46,12 +52,18 @@ router.get(
   authorizeRoles("ADMIN", "SUPER_ADMIN"),
   searchBranches
 );
+// router.get(
+//   "/search",
+//   protect,
+//   authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
+//   searchBranches
+// );
 
 // Get single branch
 router.get(
   "/:id",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getBranchById
 );
 
@@ -79,7 +91,7 @@ router.delete(
 router.get(
   "/:id/inventory",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getBranchInventory
 );
 
@@ -87,7 +99,7 @@ router.get(
 router.get(
   "/:id/sales",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getBranchSales
 );
 
@@ -95,7 +107,7 @@ router.get(
 router.get(
   "/:id/employees",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getBranchEmployees
 );
 
@@ -103,7 +115,7 @@ router.get(
 router.get(
   "/:id/performance",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getBranchPerformance
 );
 
@@ -114,5 +126,6 @@ router.put(
   authorizeRoles("ADMIN", "SUPER_ADMIN"),
   updateBranchSettings
 );
+
 
 module.exports = router;

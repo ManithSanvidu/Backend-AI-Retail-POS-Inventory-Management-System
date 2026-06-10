@@ -21,6 +21,7 @@ const sockethandler = require('./sockets/sockethandler');
 const { initNotificationSocket } = require('./sockets/notificationSockets');
 
 // Background Services & Workers
+require('./services/NotificationService'); // Initialize Notification Event Listeners
 require('./workers/notificationWorker'); // BullMQ worker starts automatically
 const { initInventoryAlertJob } = require('./jobs/inventoryAlertJob');
 const { startSecurityJobs } = require('./jobs/securityScanJob');
