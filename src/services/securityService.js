@@ -44,7 +44,7 @@ const SecurityService = {
     const policy = await SecurityPolicy.findOneAndUpdate(
       { isActive: true },
       { ...updates, updatedBy: updatedBy?._id },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
     await AuditService.log({
       user: updatedBy,

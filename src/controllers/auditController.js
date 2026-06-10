@@ -191,7 +191,7 @@ const flagAuditLog = async (req, res) => {
     const log = await AuditLog.findByIdAndUpdate(
       req.params.id,
       { flagged, flagReason: flagged ? flagReason : null },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!log) return res.status(404).json({ success: false, message: "Log not found" });
 
@@ -219,7 +219,7 @@ const reviewAuditLog = async (req, res) => {
     const log = await AuditLog.findByIdAndUpdate(
       req.params.id,
       { reviewedBy: req.user._id, reviewedAt: new Date(), reviewNotes: notes },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate("reviewedBy", "name email");
 
     if (!log) return res.status(404).json({ success: false, message: "Log not found" });

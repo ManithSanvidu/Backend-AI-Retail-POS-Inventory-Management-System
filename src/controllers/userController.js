@@ -102,7 +102,7 @@ const updateUser = async (req, res) => {
         ...(branch && { branch }),
         ...(isActive !== undefined && { isActive })
       },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-password');
 
     res.json({ success: true, data: updatedUser });

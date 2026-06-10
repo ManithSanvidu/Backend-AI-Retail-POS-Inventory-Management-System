@@ -80,7 +80,7 @@ const updateBranch = async (req, res) => {
     const branch = await Branch.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!branch) {
@@ -253,7 +253,7 @@ const updateBranchSettings = async (req, res) => {
     const branch = await Branch.findByIdAndUpdate(
       req.params.id,
       { settings: req.body },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!branch) {

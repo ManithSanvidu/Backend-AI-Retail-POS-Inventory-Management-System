@@ -144,7 +144,7 @@ class ReturnsService {
         const updatedReturn = await Return.findOneAndUpdate(
             { id: returnId },
             { status },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (!updatedReturn) {
             throw new Error(`Return request with ID ${returnId} not found.`);
