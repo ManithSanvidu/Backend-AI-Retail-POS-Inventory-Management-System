@@ -5,6 +5,7 @@ const SmsLog = require('../models/SmsLog');
 const Supplier = require('../models/Supplier');
 const Warehouse = require('../models/Warehouse');
 const Employee = require('../models/Employee');
+const Customer = require('../models/Customer');
 const { sendSMS } = require('../utils/smsSender');
 const { sendEmail } = require('../utils/emailSender');
 
@@ -351,6 +352,79 @@ const sendNotificationsToEmployees = async (req, res) => {
   }
 };
 
+// Send SMS and/or Email to selected customers
+const sendNotificationsToCustomers = async (req, res) => {
+  try {
+    const { customerIds, message, subject, sendSms, sendEmail: shouldSendEmail } = req.body;
+
+    if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+      return res.status(400).json({ error: 'Customer IDs are required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+    
+    if (!sendSms && !shouldSendEmail) {
+      return res.status(400).json({ error: 'Must select at least one channel (SMS or Email)' });
+    }
+    
+    if (shouldSendEmail && !subject) {
+      return res.status(400).json({ error: 'Subject is required for Email' });
+    }
+
+    const customers = await Customer.find({ _id: { $in: customerIds } });
+    if (customers.length === 0) {
+      return res.status(404).json({ error: 'No matching customers found' });
+    }
+
+    const results = [];
+    
+    for (const customer of customers) {
+      const resultObj = { customerId: customer._id, smsStatus: 'Not Sent', emailStatus: 'Not Sent' };
+      
+      // Handle SMS
+      if (sendSms) {
+        if (!customer.phone) {
+          resultObj.smsStatus = 'Failed: No phone';
+        } else {
+          const smsSuccess = await sendSMS(customer.phone, message);
+          const status = smsSuccess ? 'Sent' : 'Failed';
+          const errorMessage = smsSuccess ? '' : 'Failed to send SMS via provider';
+          
+          await SmsLog.create({
+            recipientPhone: customer.phone,
+            message,
+            status,
+            errorMessage
+          });
+          resultObj.smsStatus = status;
+        }
+      }
+      
+      // Handle Email
+      if (shouldSendEmail) {
+        if (!customer.email) {
+          resultObj.emailStatus = 'Failed: No email';
+        } else {
+          try {
+            await sendEmail(customer.email, subject, message);
+            resultObj.emailStatus = 'Sent';
+          } catch (err) {
+            resultObj.emailStatus = 'Failed';
+          }
+        }
+      }
+
+      results.push(resultObj);
+    }
+
+    res.json({ success: true, message: 'Notification dispatch process completed', results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
@@ -361,5 +435,6 @@ module.exports = {
   sendSmsToSuppliers,
   sendSmsToWarehouses,
   sendNotificationsToSuppliers,
-  sendNotificationsToEmployees
+  sendNotificationsToEmployees,
+  sendNotificationsToCustomers
 };

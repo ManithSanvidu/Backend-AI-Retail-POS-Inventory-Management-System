@@ -10,7 +10,8 @@ const {
   sendSmsToSuppliers,
   sendSmsToWarehouses,
   sendNotificationsToSuppliers,
-  sendNotificationsToEmployees
+  sendNotificationsToEmployees,
+  sendNotificationsToCustomers
 } = require('../controllers/NotificationController');
 
 const { protect, authorize } = require('../middleware/authMiddleware');
@@ -33,5 +34,6 @@ router.post('/sms/suppliers', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), send
 router.post('/sms/warehouses', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendSmsToWarehouses);
 router.post('/notify/suppliers', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendNotificationsToSuppliers);
 router.post('/notify/employees', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendNotificationsToEmployees);
+router.post('/notify/customers', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), sendNotificationsToCustomers);
 
 module.exports = router;
