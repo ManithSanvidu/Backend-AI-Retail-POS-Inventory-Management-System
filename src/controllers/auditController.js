@@ -277,6 +277,7 @@ const resolveSecurityEvent = async (req, res) => {
   }
 };
 
+const detectSuspiciousActivity = async (req, res) => {
   try {
     await initializeSecurityEvents();
     const flags = await SecurityService.detectSuspiciousActivity();
